@@ -31,7 +31,18 @@ const es: typeof en = {
   table: 'Tabla', rule: 'Separador', fromTemplate: 'Desde plantilla…', saveTemplate: 'Guardar como plantilla', templateSaved: 'Plantilla guardada', duplicate: 'Duplicar', merge: 'Combinar', clearSelection: 'Quitar', selectedN: '{n} seleccionadas', confirmMerge: '¿Combinar {n} notas en la primera? Las demás van a la papelera.', linkNote: 'Enlazar nota', linkedFrom: 'Enlazada desde', searchNotes: 'Buscar notas…', close: 'Cerrar', sync: 'Sincronizar', syncTitle: 'Sincronización entre dispositivos (sin nube)', syncHelp: 'Elige una carpeta que Syncthing, iCloud Drive, Dropbox o un disco USB mantenga sincronizada entre tus dispositivos. Las notas no van a ningún otro sitio.', syncFolder: 'Ruta de la carpeta', syncEnabled: 'Sincronizar automáticamente', syncEvery: 'Cada (minutos)', syncDevice: 'Este dispositivo', syncPass: 'Contraseña (cifra la carpeta)', syncPassSet: 'Hay una contraseña guardada. Déjalo vacío para conservarla.', syncPassClear: 'Quitar contraseña', syncNow: 'Sincronizar ahora', syncRunning: 'Sincronizando…', syncSaved: 'Guardado', syncLast: 'Última sincronización', syncNever: 'Nunca', syncCounts: '{pushed} enviadas · {pulled} recibidas · {deleted} borradas', syncConflicts: 'Conflictos guardados como copias', syncErrors: 'Problemas', syncPassWarn: 'Si pierdes la contraseña no se podrán recuperar los datos sincronizados.', save: 'Guardar', goodMorning: 'Buenos días', goodAfternoon: 'Buenas tardes', goodNight: 'Buenas noches', captureHint: 'Apunta una idea… (Enter crea una nota)', upcomingTasks: 'Tareas próximas', viewAll: 'Ver todas', nothingDue: 'Nada con fecha en los próximos 7 días', upcomingReminders: 'Recordatorios', nothingScheduled: 'Nada programado', recentNotes: 'Notas recientes', serverDown: 'OpenNote no está en marcha. Arráncalo (npm start, o abre la app de escritorio) y vuelve a intentarlo.', retry: 'Reintentar', lockNote: 'Cifrar nota', lockedHint: 'Esta nota está cifrada con una contraseña. Escríbela para leer o editar la nota.', passphrase: 'Contraseña', passphraseConfirm: 'Repite la contraseña', passphraseShort: 'Usa al menos 8 caracteres', passphraseMismatch: 'Las contraseñas no coinciden', lockWarn: 'El texto de la nota se cifra en este dispositivo. El título, las etiquetas y los adjuntos no. Si olvidas la contraseña no se puede recuperar la nota.', encryptedNote: 'Nota cifrada', unlock: 'Desbloquear', wrongPass: 'Contraseña incorrecta', removeLock: 'Quitar cifrado', lockedBanner: 'Cifrada. El texto se guarda cifrado; la clave solo vive en esta ventana.', record: 'Grabar audio', stopRecording: 'Detener grabación', sketch: 'Dibujo', eraser: 'Borrador', clear: 'Borrar todo', insertDrawing: 'Insertar dibujo', attachments: '{n} adjuntos', attachmentOne: '1 adjunto', preview: 'Vista previa', download: 'Descargar', confirmRemoveFile: '¿Quitar este archivo? Los enlaces a él dentro de la nota dejarán de funcionar.', noPreview: 'No hay vista previa para este tipo de archivo. Usa Descargar.', tasks: 'Tareas', dueDate: 'Fecha límite (cursor en una tarea)', overdue: 'Vencidas', today: 'Hoy', next7: 'Próximos 7 días', later: 'Más adelante', noDate: 'Sin fecha', openTasks: 'Abiertas', doneTasks: 'Hechas', noTasks: 'No hay tareas', local: 'Guardado localmente en este dispositivo',
 };
 export type Key = keyof typeof en;
-const dict = navigator.language.toLowerCase().startsWith('es') ? es : en;
+/** Language: ?lang=en|es (remembered), otherwise the browser's. */
+function pickLanguage(): string {
+  try {
+    const asked = new URLSearchParams(location.search).get('lang');
+    if (asked === 'en' || asked === 'es') localStorage.setItem('opennote.lang', asked);
+    return localStorage.getItem('opennote.lang') ?? navigator.language;
+  } catch {
+    return navigator.language;
+  }
+}
+const language = pickLanguage();
+const dict = language.toLowerCase().startsWith('es') ? es : en;
 export const t = (key: Key, vars?: Record<string, string | number>) =>
   dict[key].replace(/\{(\w+)\}/g, (_, k: string) => String(vars?.[k] ?? ''));
-export const locale = navigator.language;
+export const locale = language;

@@ -101,11 +101,18 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
           merge-multiple: true
+      - name: Release notes from CHANGELOG.md
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v v="$version" '/^## \[/ { printing = index($0, "[" v "]") > 0; next } printing' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then echo "No section [$version] in CHANGELOG.md"; exit 1; fi
+          cat release-notes.md
       - uses: softprops/action-gh-release@v2
         with:
           files: artifacts/*
-          generate_release_notes: true
+          body_path: release-notes.md

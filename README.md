@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/cover.png" alt="OpenNote: local-first notes. Your data stays yours." width="860">
+</p>
+
 # OpenNote
 
 A local-first, open source note-taking app with the workflow people know from Evernote:
