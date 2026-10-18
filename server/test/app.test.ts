@@ -510,9 +510,12 @@ describe('markdown / html / zip import and export', () => {
     const assetName = names.find((n) => n.startsWith('Life/Trips/attachments/'))!;
     expect(assetName).toMatch(/attachments\/[0-9a-f]{8}-map\.png$/);
     expect([...files[assetName]!]).toEqual([1, 2, 3]);
-    const md = new TextDecoder().decode(files['Life/Trips/Rome _ 2024.md']);
+    // Which of the two same-titled notes gets the plain name depends on timestamp ties: look at both.
+    const mds = ['Life/Trips/Rome _ 2024.md', 'Life/Trips/Rome _ 2024 (2).md'].map((n) => new TextDecoder().decode(files[n]));
+    const md = mds.find((m) => m.includes('Colosseum'))!;
     expect(md).toContain(`![](${encodeURI(`attachments/${assetName.split('/').pop()}`)})`);
     expect(md).toContain('tags: ["travel"]');
+    expect(mds.some((m) => m.includes('duplicate title'))).toBe(true);
 
     // Import the export into a fresh store: structure and files survive.
     const fresh = setup();
