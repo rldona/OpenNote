@@ -51,6 +51,10 @@ Back up that folder and you have backed up everything.
 - **Encrypted notes**: lock any note with a passphrase (AES-256-GCM in the browser; the server, the database, backups and
   the sync folder only ever see ciphertext). Titles, tags and attachments are not encrypted; a lost passphrase cannot be recovered
 - **Home** dashboard, installable **PWA**, and a clear banner when the local server is not running
+- **Search inside files**: text files always; PDFs and images (OCR) when the optional tools are installed.
+  `brew install poppler tesseract` (macOS) · `sudo apt install poppler-utils tesseract-ocr tesseract-ocr-spa` (Linux) ·
+  Poppler/Tesseract installers on Windows. OpenNote finds them on its own and indexes existing files in the background
+  (`GET /api/index/status` shows progress)
 - **Note history**: automatic versions, restore any earlier one
 - **Reminders** with in-app and desktop notifications
 - **Import/export ENEX** (Evernote's documented export format) including tags, dates, checklists and

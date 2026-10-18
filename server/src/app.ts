@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { exportEnex, importEnex } from './enex.js';
 import { clipPage, type ClipOptions } from './clip.js';
+import type { AttachmentIndexer } from './indexer.js';
 import { exportZip, importArchive, importFile, looksLikeZip } from './import.js';
 import { noteToMarkdown } from './markdown.js';
 import { sanitizeHtml } from './html.js';
@@ -16,7 +17,7 @@ function safeFilename(name: string): string {
   return name.replace(/[^\w.\- ]+/g, '_').slice(0, 120) || 'file';
 }
 
-export function createApp(store: NoteStore, sync?: SyncEngine, clipOptions?: ClipOptions): Hono {
+export function createApp(store: NoteStore, sync?: SyncEngine, clipOptions?: ClipOptions, indexer?: AttachmentIndexer): Hono {
   const app = new Hono();
 
   // The API controls local files, so only accept requests addressed to this machine
@@ -209,6 +210,9 @@ export function createApp(store: NoteStore, sync?: SyncEngine, clipOptions?: Cli
     }, clipOptions);
     return c.json({ id: note.id, title: note.title }, 201);
   });
+
+  // -------------------------------------------------- search inside attachments
+  app.get('/api/index/status', (c) => (indexer ? c.json(indexer.status()) : c.json({ error: 'not available' }, 404)));
 
   // --------------------------------------------------------------------- sync
   app.get('/api/sync/config', (c) => (sync ? c.json(sync.getConfig()) : c.json({ error: 'sync is not available' }, 404)));

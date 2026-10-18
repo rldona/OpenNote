@@ -219,6 +219,50 @@ export class NoteStore {
     this.db.exec('DELETE FROM tags WHERE id NOT IN (SELECT tag_id FROM note_tags)');
   }
 
+  private attachmentListeners: ((id: string) => void)[] = [];
+
+  /** Called with the id of every attachment that is created here or arrives through sync. */
+  onAttachmentAdded(listener: (id: string) => void): void {
+    this.attachmentListeners.push(listener);
+  }
+
+  private attachmentAdded(id: string): void {
+    for (const l of this.attachmentListeners) l(id);
+  }
+
+  /** Records the text read from an attachment and refreshes the note's search entry. */
+  setAttachmentText(attachmentId: string, text: string, status: string): void {
+    const att = this.db.prepare('SELECT note_id FROM attachments WHERE id = ?').get(attachmentId) as Row | undefined;
+    if (!att) throw new NotFoundError('attachment not found');
+    this.tx(() => {
+      this.db
+        .prepare('INSERT OR REPLACE INTO attachment_text (attachment_id, text, status, indexed_at) VALUES (?, ?, ?, ?)')
+        .run(attachmentId, text, status, Date.now());
+      this.reindex(att.note_id as string);
+    });
+  }
+
+  /** Attachments never read (status null) or waiting for a tool that was not installed at the time. */
+  attachmentsToIndex(): { id: string; mime: string; filename: string; status: string | null }[] {
+    const rows = this.db
+      .prepare(
+        `SELECT a.id, a.mime, a.filename, t.status FROM attachments a
+         LEFT JOIN attachment_text t ON t.attachment_id = a.id
+         WHERE t.status IS NULL OR t.status = 'needs-tool'`,
+      )
+      .all() as Row[];
+    return rows.map((r) => ({ id: r.id as string, mime: r.mime as string, filename: r.filename as string, status: (r.status as string) ?? null }));
+  }
+
+  attachmentIndexCounts(): { pending: number; ok: number; failed: number } {
+    const one = (sql: string) => (this.db.prepare(sql).get() as Row).n as number;
+    return {
+      pending: one("SELECT COUNT(*) AS n FROM attachments a LEFT JOIN attachment_text t ON t.attachment_id = a.id WHERE t.status IS NULL"),
+      ok: one("SELECT COUNT(*) AS n FROM attachment_text WHERE status = 'ok'"),
+      failed: one("SELECT COUNT(*) AS n FROM attachment_text WHERE status = 'failed'"),
+    };
+  }
+
   /** Closes the database. The store must not be used afterwards. */
   close(): void {
     this.db.close();
@@ -519,10 +563,18 @@ export class NoteStore {
 
   private reindex(id: string): void {
     const row = this.db.prepare('SELECT title, text FROM notes WHERE id = ?').get(id) as Row;
+    const fromFiles = (
+      this.db
+        .prepare(
+          `SELECT t.text FROM attachment_text t JOIN attachments a ON a.id = t.attachment_id
+           WHERE a.note_id = ? AND t.text != '' ORDER BY a.created_at`,
+        )
+        .all(id) as Row[]
+    ).map((r) => r.text as string);
     this.db.prepare('DELETE FROM notes_fts WHERE note_id = ?').run(id);
     this.db
       .prepare('INSERT INTO notes_fts (note_id, title, body) VALUES (?, ?, ?)')
-      .run(id, row.title as string, row.text as string);
+      .run(id, row.title as string, [row.text as string, ...fromFiles].join('\n'));
     this.syncTasks(id);
   }
 
@@ -827,6 +879,7 @@ export class NoteStore {
   applyFromSync(rec: SyncNote, blobs: Map<string, Buffer>): void {
     const content = sanitizeHtml(rec.content);
     const text = htmlToText(content);
+    const added: string[] = [];
     this.tx(() => {
       const notebook = this.findOrCreateNotebook(rec.notebook.name, rec.notebook.stack);
       const existing = this.db.prepare('SELECT 1 FROM notes WHERE id = ?').get(rec.id);
@@ -863,9 +916,11 @@ export class NoteStore {
              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
           )
           .run(a.id, rec.id, a.filename, a.mime, data.length, a.md5, a.sha256, a.createdAt);
+        added.push(a.id);
       }
       this.reindex(rec.id);
     });
+    added.forEach((id) => this.attachmentAdded(id));
   }
 
   /** Permanent delete caused by sync: must not create a tombstone of its own. */
@@ -1000,6 +1055,7 @@ export class NoteStore {
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(id, noteId, att.filename, att.mime, att.size, att.md5, createHash('sha256').update(buf).digest('hex'), att.createdAt);
+    this.attachmentAdded(id);
     return att;
   }
 
@@ -1017,10 +1073,11 @@ export class NoteStore {
   }
 
   deleteAttachment(id: string): void {
-    const row = this.db.prepare('SELECT id FROM attachments WHERE id = ?').get(id);
+    const row = this.db.prepare('SELECT id, note_id FROM attachments WHERE id = ?').get(id) as Row | undefined;
     if (!row) throw new NotFoundError('attachment not found');
     this.db.prepare('DELETE FROM attachments WHERE id = ?').run(id);
     this.removeBlobIfOrphan(id);
+    this.reindex(row.note_id as string); // its text no longer belongs to the note
   }
 
   private removeBlobIfOrphan(id: string): void {

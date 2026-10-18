@@ -40,7 +40,7 @@ as long as it respects the target's license.
 | | Markdown / HTML / Obsidian-vault import | ✅ |
 | Find | Full-text search (prefix, phrase, accents, ranking) | ✅ |
 | | `tag:` `notebook:` `todo:` `resource:` `reminderTime:` | ✅ |
-| | Search inside attachments (PDF/OCR) | planned |
+| | Search inside attachments: text, PDF (Poppler), images/scans (Tesseract OCR), both optional | ✅ |
 | | Date operators, negation, `any:`, `intitle:`, `sourceUrl:` | ✅ |
 | Act | Reminders + notifications | ✅ |
 | | Home dashboard (tasks due, reminders, pinned, recent) | ✅ |

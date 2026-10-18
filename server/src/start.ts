@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { createApp } from './app.js';
+import { AttachmentIndexer } from './indexer.js';
 import { openDb } from './db.js';
 import { NoteStore } from './store.js';
 import { SyncEngine, startSyncScheduler } from './sync.js';
@@ -56,7 +57,9 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
   const store = new NoteStore(openDb(join(dataDir, 'opennote.db')), join(dataDir, 'attachments'));
   store.seedTemplates(opts.lang ?? 'en');
   const sync = new SyncEngine(store, { dataDir });
-  const app = createApp(store, sync);
+  const indexer = new AttachmentIndexer(store, { log: opts.log });
+  void indexer.init();
+  const app = createApp(store, sync, undefined, indexer);
   const stopSync = startSyncScheduler(sync, opts.log);
 
   if (opts.webDist && existsSync(join(opts.webDist, 'index.html'))) {

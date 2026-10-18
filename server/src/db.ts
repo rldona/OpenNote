@@ -82,6 +82,14 @@ CREATE TABLE IF NOT EXISTS tasks (
 );
 CREATE INDEX IF NOT EXISTS tasks_due ON tasks(due);
 
+-- Text read from attachments (PDF, images by OCR, text files) so searches can find it. Local to each device.
+CREATE TABLE IF NOT EXISTS attachment_text (
+  attachment_id TEXT PRIMARY KEY REFERENCES attachments(id) ON DELETE CASCADE,
+  text TEXT NOT NULL,
+  status TEXT NOT NULL,
+  indexed_at INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS meta (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
