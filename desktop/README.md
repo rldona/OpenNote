@@ -6,8 +6,8 @@ and nothing leaves your computer.
 | System | Installer | Notes |
 | --- | --- | --- |
 | macOS (Apple Silicon and Intel) | `OpenNote-<version>-mac-arm64.dmg`, `…-mac-x64.dmg` | Drag OpenNote to Applications |
-| Windows (x64) | `OpenNote-<version>-win-x64.exe` | NSIS installer, per user, choose the install folder |
-| Linux (x64) | `OpenNote-<version>-linux-amd64.deb` | `sudo apt install ./OpenNote-*.deb`, then run `opennote` or use the launcher |
+| Windows (x64 and arm64) | `OpenNote-<version>-win-x64.exe`, `…-win-arm64.exe` | NSIS installer, per user, choose the install folder |
+| Linux (x64 and arm64) | `OpenNote-<version>-linux-amd64.deb`, `…-linux-arm64.deb` | `sudo apt install ./OpenNote-*_<your arch>.deb`, then run `opennote` or use the launcher |
 
 **Installers are produced only by GitHub Actions** (`.github/workflows/desktop.yml`), on real macOS, Windows and Linux
 runners, and attached to each GitHub Release. Nobody builds release installers by hand.

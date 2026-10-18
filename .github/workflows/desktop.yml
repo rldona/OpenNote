@@ -24,9 +24,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: macOS (.dmg), os: macos-latest, builder: '--mac dmg' }
-          - { name: Windows (.exe), os: windows-latest, builder: '--win nsis' }
-          - { name: Linux (.deb), os: ubuntu-latest, builder: '--linux deb' }
+          - { name: macOS (.dmg), os: macos-latest, builder: '--mac dmg --arm64 --x64' }
+          - { name: Windows (.exe), os: windows-latest, builder: '--win nsis --x64 --arm64' }
+          - { name: Linux (.deb), os: ubuntu-latest, builder: '--linux deb --x64 --arm64' }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -80,7 +80,7 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           export OPENNOTE_SMOKE=1 OPENNOTE_DATA="$(mktemp -d)"
-          app=$(ls -d desktop/release/mac*/OpenNote.app | head -1)
+          app=desktop/release/mac-arm64/OpenNote.app   # the runner is Apple Silicon
           "$app/Contents/MacOS/OpenNote" 2>&1 | tee smoke.log
           grep -q 'SMOKE OK' smoke.log
 
