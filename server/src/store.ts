@@ -2,7 +2,7 @@ import type { DatabaseSync, SQLInputValue } from 'node:sqlite';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { extractTasks, htmlToText, patchTaskItem, snippet } from './html.js';
+import { extractTasks, htmlToText, patchTaskItem, sanitizeHtml, snippet } from './html.js';
 
 export interface Notebook {
   id: string;
@@ -54,6 +54,23 @@ export interface Task {
 export interface TaskFilter {
   status?: 'open' | 'done' | 'all';
   due?: 'overdue' | 'today' | 'week' | 'none' | 'any';
+}
+
+/** A note as stored in the sync folder. Contains everything needed to rebuild it on another device. */
+export interface SyncNote {
+  id: string;
+  notebook: { name: string; stack: string | null };
+  title: string;
+  content: string;
+  pinned: boolean;
+  trashedAt: number | null;
+  reminderAt: number | null;
+  sourceUrl: string | null;
+  createdAt: number;
+  updatedAt: number;
+  isTemplate: boolean;
+  tags: string[];
+  attachments: { id: string; filename: string; mime: string; size: number; md5: string; sha256: string; createdAt: number }[];
 }
 
 export interface NoteInput {
@@ -374,11 +391,20 @@ export class NoteStore {
   }
 
   deleteNotePermanently(id: string): void {
+    this.purgeNote(id, true);
+  }
+
+  private purgeNote(id: string, tombstone: boolean): void {
     this.getNote(id);
     const files = this.listAttachments(id);
     this.tx(() => {
       this.db.prepare('DELETE FROM notes_fts WHERE note_id = ?').run(id);
       this.db.prepare('DELETE FROM notes WHERE id = ?').run(id);
+      if (tombstone) {
+        this.db
+          .prepare('INSERT OR REPLACE INTO sync_tombstones (note_id, deleted_at, pushed) VALUES (?, ?, 0)')
+          .run(id, Date.now());
+      }
     });
     for (const a of files) this.removeBlobIfOrphan(a.id);
   }
@@ -396,7 +422,7 @@ export class NoteStore {
     const parsed = filter.q ? parseQuery(filter.q) : null;
 
     where.push(filter.trashed ? 'n.trashed_at IS NOT NULL' : 'n.trashed_at IS NULL');
-    where.push(filter.templates ? 'n.is_template = 1' : 'n.is_template = 0');
+    where.push(filter.templates ? 'n.is_template > 0' : 'n.is_template = 0');
     if (filter.notebookId) {
       where.push('n.notebook_id = ?');
       params.push(filter.notebookId);
@@ -656,7 +682,7 @@ export class NoteStore {
   createFromTemplate(templateId: string, notebookId?: string): Note {
     const tpl = this.getNote(templateId);
     const isTemplate = this.db.prepare('SELECT is_template FROM notes WHERE id = ?').get(templateId) as Row;
-    if (isTemplate.is_template !== 1) throw new ValidationError('not a template');
+    if (!(isTemplate.is_template as number)) throw new ValidationError('not a template');
     const created = this.createNote({ notebookId, title: NoteStore.fill(tpl.title), content: NoteStore.fill(tpl.content) });
     return this.copyAttachments(tpl.id, created.id);
   }
@@ -684,10 +710,164 @@ export class NoteStore {
     this.tx(() => {
       for (const [title, content] of templates) {
         const n = this.createNote({ title: title!, content: content! });
-        this.db.prepare('UPDATE notes SET is_template = 1 WHERE id = ?').run(n.id);
+        this.db.prepare('UPDATE notes SET is_template = 2 WHERE id = ?').run(n.id);
       }
       this.db.exec('PRAGMA user_version = 2');
     });
+  }
+
+  // -------------------------------------------------------------- sync support
+
+  getMeta(key: string): string | null {
+    const row = this.db.prepare('SELECT value FROM meta WHERE key = ?').get(key) as Row | undefined;
+    return (row?.value as string) ?? null;
+  }
+
+  setMeta(key: string, value: string | null): void {
+    if (value === null) this.db.prepare('DELETE FROM meta WHERE key = ?').run(key);
+    else this.db.prepare('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)').run(key, value);
+  }
+
+  getSyncState(id: string): { vv: Record<string, number>; hash: string } | null {
+    const row = this.db.prepare('SELECT vv, hash FROM sync_state WHERE note_id = ?').get(id) as Row | undefined;
+    return row ? { vv: JSON.parse(row.vv as string), hash: row.hash as string } : null;
+  }
+
+  setSyncState(id: string, vv: Record<string, number>, hash: string): void {
+    this.db
+      .prepare('INSERT OR REPLACE INTO sync_state (note_id, vv, hash) VALUES (?, ?, ?)')
+      .run(id, JSON.stringify(vv), hash);
+  }
+
+  deleteSyncState(id: string): void {
+    this.db.prepare('DELETE FROM sync_state WHERE note_id = ?').run(id);
+  }
+
+  listTombstones(): { noteId: string; deletedAt: number; pushed: boolean }[] {
+    const rows = this.db.prepare('SELECT * FROM sync_tombstones').all() as Row[];
+    return rows.map((r) => ({ noteId: r.note_id as string, deletedAt: r.deleted_at as number, pushed: r.pushed === 1 }));
+  }
+
+  markTombstonePushed(id: string): void {
+    this.db.prepare('UPDATE sync_tombstones SET pushed = 1 WHERE note_id = ?').run(id);
+  }
+
+  removeTombstone(id: string): void {
+    this.db.prepare('DELETE FROM sync_tombstones WHERE note_id = ?').run(id);
+  }
+
+  /** Notes that take part in sync (built-in templates are per device). */
+  syncNoteIds(): string[] {
+    return (this.db.prepare('SELECT id FROM notes WHERE is_template != 2').all() as Row[]).map((r) => r.id as string);
+  }
+
+  hasNote(id: string): boolean {
+    return !!this.db.prepare('SELECT 1 FROM notes WHERE id = ?').get(id);
+  }
+
+  /** Full, self-contained snapshot of a note as it travels through the sync folder. */
+  exportForSync(id: string): SyncNote | null {
+    const row = this.db
+      .prepare(
+        `SELECT n.*, nb.name AS nb_name, nb.stack AS nb_stack FROM notes n
+         JOIN notebooks nb ON nb.id = n.notebook_id WHERE n.id = ? AND n.is_template != 2`,
+      )
+      .get(id) as Row | undefined;
+    if (!row) return null;
+    const tags = (
+      this.db.prepare('SELECT t.name FROM tags t JOIN note_tags nt ON nt.tag_id = t.id WHERE nt.note_id = ?').all(id) as Row[]
+    )
+      .map((t) => t.name as string)
+      .sort();
+    const attachments = (
+      this.db
+        .prepare('SELECT id, filename, mime, size, md5, sha256, created_at FROM attachments WHERE note_id = ? ORDER BY id')
+        .all(id) as Row[]
+    ).map((a) => ({
+      id: a.id as string,
+      filename: a.filename as string,
+      mime: a.mime as string,
+      size: a.size as number,
+      md5: a.md5 as string,
+      sha256: a.sha256 as string,
+      createdAt: a.created_at as number,
+    }));
+    return {
+      id,
+      notebook: { name: row.nb_name as string, stack: (row.nb_stack as string) ?? null },
+      title: row.title as string,
+      content: row.content as string,
+      pinned: row.pinned === 1,
+      trashedAt: (row.trashed_at as number) ?? null,
+      reminderAt: (row.reminder_at as number) ?? null,
+      sourceUrl: (row.source_url as string) ?? null,
+      createdAt: row.created_at as number,
+      updatedAt: row.updated_at as number,
+      isTemplate: (row.is_template as number) > 0,
+      tags,
+      attachments,
+    };
+  }
+
+  hasAttachment(id: string): boolean {
+    return !!this.db.prepare('SELECT 1 FROM attachments WHERE id = ?').get(id);
+  }
+
+  /**
+   * Creates or overwrites a note from a synced snapshot, keeping its id. `blobs` must hold the bytes of
+   * every attachment this device does not have yet. The previous local content is kept in the history.
+   */
+  applyFromSync(rec: SyncNote, blobs: Map<string, Buffer>): void {
+    const content = sanitizeHtml(rec.content);
+    const text = htmlToText(content);
+    this.tx(() => {
+      const notebook = this.findOrCreateNotebook(rec.notebook.name, rec.notebook.stack);
+      const existing = this.db.prepare('SELECT 1 FROM notes WHERE id = ?').get(rec.id);
+      if (existing) this.snapshotVersion(this.getNote(rec.id));
+      this.db
+        .prepare(
+          `INSERT INTO notes (id, notebook_id, title, content, text, pinned, trashed_at, reminder_at, source_url,
+             created_at, updated_at, is_template)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET notebook_id = excluded.notebook_id, title = excluded.title,
+             content = excluded.content, text = excluded.text, pinned = excluded.pinned,
+             trashed_at = excluded.trashed_at, reminder_at = excluded.reminder_at, source_url = excluded.source_url,
+             created_at = excluded.created_at, updated_at = excluded.updated_at, is_template = excluded.is_template`,
+        )
+        .run(
+          rec.id, notebook.id, rec.title.slice(0, 500), content, text, rec.pinned ? 1 : 0, rec.trashedAt,
+          rec.reminderAt, rec.sourceUrl, rec.createdAt, rec.updatedAt, rec.isTemplate ? 1 : 0,
+        );
+      this.setTags(rec.id, rec.tags);
+
+      const keep = new Set(rec.attachments.map((a) => a.id));
+      for (const a of this.listAttachments(rec.id)) if (!keep.has(a.id)) this.deleteAttachment(a.id);
+      for (const a of rec.attachments) {
+        if (this.hasAttachment(a.id)) {
+          this.db.prepare('UPDATE attachments SET note_id = ? WHERE id = ?').run(rec.id, a.id);
+          continue;
+        }
+        const data = blobs.get(a.id);
+        if (!data) throw new Error(`missing attachment data ${a.id}`);
+        writeFileSync(this.blobPath(a.id), data);
+        this.db
+          .prepare(
+            `INSERT INTO attachments (id, note_id, filename, mime, size, md5, sha256, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          )
+          .run(a.id, rec.id, a.filename, a.mime, data.length, a.md5, a.sha256, a.createdAt);
+      }
+      this.reindex(rec.id);
+    });
+  }
+
+  /** Permanent delete caused by sync: must not create a tombstone of its own. */
+  deleteForSync(id: string): void {
+    if (this.hasNote(id)) this.purgeNote(id, false);
+  }
+
+  attachmentData(id: string): Buffer {
+    return this.getAttachment(id).data;
   }
 
   // -------------------------------------------------- duplicate, merge, links

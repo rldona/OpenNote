@@ -45,7 +45,7 @@ as long as it respects the target's license.
 | Move | ENEX import / export | ✅ |
 | | Markdown export (per note) | ✅ |
 | | Zip export (Markdown + attachments) | ✅ |
-| Sync | Optional self-hosted sync | planned |
+| Sync | Serverless folder sync, conflict copies, optional encryption | ✅ |
 | | Desktop shell (Tauri/Electron) | planned |
 | Security | Local-only server, Host/Origin checks, sanitized HTML, sandboxed attachments | ✅ |
 | | Encryption at rest / encrypted notes | planned |

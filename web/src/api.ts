@@ -8,6 +8,11 @@ export interface Note extends NoteSummary { content: string; sourceUrl: string |
 export interface TagCount { name: string; count: number; total: number; virtual: boolean }
 export interface SavedSearch { id: string; name: string; query: string }
 export interface Task { noteId: string; noteTitle: string; notebookId: string; idx: number; text: string; checked: boolean; due: string | null }
+export interface SyncConfig { folder: string | null; enabled: boolean; intervalMinutes: number; hasPassphrase: boolean; deviceName: string }
+export interface SyncStatus {
+  running: boolean; lastRunAt: number | null; ok: boolean; pushed: number; pulled: number; deleted: number;
+  conflicts: { noteId: string; title: string; at: number }[]; errors: string[];
+}
 export interface Version { id: number; title: string; savedAt: number }
 
 async function req<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -53,6 +58,11 @@ export const api = {
   duplicate: (id: string) => req<Note>('POST', `/notes/${id}/duplicate`),
   merge: (ids: string[]) => req<Note>('POST', '/notes/merge', { ids }),
   backlinks: (id: string) => req<{ id: string; title: string }[]>('GET', `/notes/${id}/backlinks`),
+  syncConfig: () => req<SyncConfig>('GET', '/sync/config'),
+  setSyncConfig: (patch: Partial<Omit<SyncConfig, 'hasPassphrase'>> & { passphrase?: string | null }) =>
+    req<SyncConfig>('PUT', '/sync/config', patch),
+  syncStatus: () => req<SyncStatus>('GET', '/sync/status'),
+  syncNow: () => req<SyncStatus>('POST', '/sync/run'),
   tasks: (status: 'open' | 'done') => req<Task[]>('GET', `/tasks?status=${status}`),
   updateTask: (noteId: string, idx: number, patch: { checked?: boolean; due?: string | null }) =>
     req<void>('PATCH', `/tasks/${noteId}/${idx}`, patch),

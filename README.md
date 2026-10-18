@@ -47,6 +47,8 @@ Back up that folder and you have backed up everything.
   attachments, so you can bring your notes over or leave at any time
 - **Import Markdown / HTML / zip** (Obsidian vaults and folders become notebooks and stacks, relative images become
   attachments) and **export everything as a zip** of Markdown files plus attachments; export single notes as Markdown
+- **Sync between devices without any cloud**: through a folder you choose (Syncthing, iCloud Drive, Dropbox, USB…),
+  with conflict copies instead of data loss and optional AES-256 encryption — see [docs/SYNC.md](docs/SYNC.md)
 - Light/dark theme, English and Spanish UI
 - Loopback-only server: Host and Origin checks protect your notes from other websites
 
@@ -68,7 +70,7 @@ web/src/              React client
 
 ## Limitations (MVP)
 
-- Single user, single device: there is no sync yet (copy the data folder, or use ENEX)
+- Single user (sync is by shared folder, not a hosted service; there is no real-time collaboration or note sharing)
 - Single-note Markdown export references attachments as `attachments/<name>` without bundling them (use the zip export for that)
 - ENEX import loads the file in memory, so very large exports (hundreds of MB) may be slow
 - Evernote-only features that need a server (shared notebooks, Spaces, AI) are out of scope

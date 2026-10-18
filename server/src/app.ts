@@ -4,6 +4,7 @@ import { exportZip, importArchive, importFile, looksLikeZip } from './import.js'
 import { noteToMarkdown } from './markdown.js';
 import { sanitizeHtml } from './html.js';
 import { NoteStore, NotFoundError, ValidationError, type NoteInput } from './store.js';
+import { SyncEngine, SyncError } from './sync.js';
 
 const LOCAL_HOST = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
 const INLINE_MIME = /^(image\/(png|jpe?g|gif|webp|avif|bmp)|application\/pdf|audio\/|video\/)/;
@@ -12,7 +13,7 @@ function safeFilename(name: string): string {
   return name.replace(/[^\w.\- ]+/g, '_').slice(0, 120) || 'file';
 }
 
-export function createApp(store: NoteStore): Hono {
+export function createApp(store: NoteStore, sync?: SyncEngine): Hono {
   const app = new Hono();
 
   // The API controls local files, so only accept requests addressed to this machine
@@ -30,7 +31,7 @@ export function createApp(store: NoteStore): Hono {
 
   app.onError((err, c) => {
     if (err instanceof NotFoundError) return c.json({ error: err.message }, 404);
-    if (err instanceof ValidationError) return c.json({ error: err.message }, 400);
+    if (err instanceof ValidationError || err instanceof SyncError) return c.json({ error: err.message }, 400);
     console.error(err);
     return c.json({ error: 'internal error' }, 500);
   });
@@ -167,6 +168,23 @@ export function createApp(store: NoteStore): Hono {
     store.deleteAttachment(c.req.param('id'));
     return c.body(null, 204);
   });
+
+  // --------------------------------------------------------------------- sync
+  app.get('/api/sync/config', (c) => (sync ? c.json(sync.getConfig()) : c.json({ error: 'sync is not available' }, 404)));
+  app.put('/api/sync/config', async (c) => {
+    if (!sync) return c.json({ error: 'sync is not available' }, 404);
+    const b = await body(c);
+    const patch: Parameters<SyncEngine['setConfig']>[0] = {};
+    if (b.folder === null || typeof b.folder === 'string') patch.folder = b.folder;
+    if (typeof b.enabled === 'boolean') patch.enabled = b.enabled;
+    if (typeof b.intervalMinutes === 'number') patch.intervalMinutes = b.intervalMinutes;
+    if (b.passphrase === null || typeof b.passphrase === 'string') patch.passphrase = b.passphrase;
+    if (typeof b.deviceName === 'string') patch.deviceName = b.deviceName;
+    sync.setConfig(patch);
+    return c.json(sync.getConfig());
+  });
+  app.get('/api/sync/status', (c) => (sync ? c.json(sync.getStatus()) : c.json({ error: 'sync is not available' }, 404)));
+  app.post('/api/sync/run', async (c) => (sync ? c.json(await sync.run()) : c.json({ error: 'sync is not available' }, 404)));
 
   // ------------------------------------------------------------ import/export
   app.post('/api/import/enex', async (c) => {

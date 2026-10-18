@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { createApp } from './app.js';
 import { openDb } from './db.js';
 import { NoteStore } from './store.js';
+import { SyncEngine, startSyncScheduler } from './sync.js';
 
 const dataDir = resolve(process.env.OPENNOTE_DATA ?? join(homedir(), '.opennote'));
 const port = Number(process.env.PORT ?? 3737);
@@ -14,7 +15,9 @@ const webDist = resolve(fileURLToPath(new URL('../../web/dist', import.meta.url)
 
 const store = new NoteStore(openDb(join(dataDir, 'opennote.db')), join(dataDir, 'attachments'));
 store.seedTemplates(process.env.LC_ALL || process.env.LANG || 'en');
-const app = createApp(store);
+const sync = new SyncEngine(store, { dataDir });
+const app = createApp(store, sync);
+startSyncScheduler(sync, console.warn);
 
 if (existsSync(webDist)) {
   app.use('/*', serveStatic({ root: relativeTo(webDist) }));

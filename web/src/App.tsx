@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, type Task, type Note, type NoteSummary, type Notebook, type SavedSearch, type TagCount, type Version } from './api';
 import { NoteEditor } from './Editor';
+import { SyncPanel } from './SyncPanel';
 import { locale, t } from './i18n';
 
 type View =
@@ -40,6 +41,7 @@ export function App() {
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [backlinks, setBacklinks] = useState<{ id: string; title: string }[]>([]);
   const [toast, setToast] = useState<string | null>(null);
+  const [showSync, setShowSync] = useState(false);
   const [history, setHistory] = useState<Version[] | null>(null);
   const importInput = useRef<HTMLInputElement>(null);
   const importFilesInput = useRef<HTMLInputElement>(null);
@@ -290,6 +292,7 @@ export function App() {
           <button onClick={() => importFilesInput.current?.click()}>{t('importFiles')}</button>
           <a href="/api/export/enex" download>{t('exportEnex')}</a>
           <a href="/api/export/zip" download>{t('exportZip')}</a>
+          <button onClick={() => setShowSync(true)}>🔄 {t('sync')}</button>
           <input
             ref={importFilesInput}
             type="file"
@@ -493,6 +496,13 @@ export function App() {
             <button onClick={() => setHistory(null)}>✕</button>
           </div>
         </div>
+      )}
+
+      {showSync && (
+        <SyncPanel
+          onClose={() => setShowSync(false)}
+          onSynced={() => void Promise.all([refreshList(), refreshMeta()])}
+        />
       )}
 
       {toast && (

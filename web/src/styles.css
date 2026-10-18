@@ -221,3 +221,16 @@ button.primary {
 .pick { display: flex; flex-direction: column; text-align: left; width: 100%; background: none; border: 0; padding: 4px 0; }
 .pick small { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .modal input[type='search'] { padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); }
+
+/* sync panel */
+.sync-panel label { display: flex; flex-direction: column; gap: 2px; margin: 8px 0; font-size: 13px; }
+.sync-panel label.inline { flex-direction: row; align-items: center; gap: 6px; }
+.sync-panel input:not([type='checkbox']) { padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); }
+.sync-panel .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 10px 0; }
+.sync-panel button { border: 1px solid var(--border); border-radius: 6px; background: none; padding: 4px 12px; }
+.sync-panel button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.sync-panel button:disabled { opacity: .5; cursor: not-allowed; }
+.sync-status { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); font-size: 13px; }
+.sync-status ul { margin: 4px 0; padding-left: 18px; }
+.muted { color: var(--muted); font-size: 12px; }
+.error { color: var(--danger); }

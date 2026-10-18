@@ -82,6 +82,25 @@ CREATE TABLE IF NOT EXISTS tasks (
 );
 CREATE INDEX IF NOT EXISTS tasks_due ON tasks(due);
 
+CREATE TABLE IF NOT EXISTS meta (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
+-- Last synced vector clock and content hash of every note (see sync.ts).
+CREATE TABLE IF NOT EXISTS sync_state (
+  note_id TEXT PRIMARY KEY,
+  vv TEXT NOT NULL,
+  hash TEXT NOT NULL
+);
+
+-- Permanent deletions that still have to reach other devices.
+CREATE TABLE IF NOT EXISTS sync_tombstones (
+  note_id TEXT PRIMARY KEY,
+  deleted_at INTEGER NOT NULL,
+  pushed INTEGER NOT NULL DEFAULT 0
+);
+
 CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
   note_id UNINDEXED,
   title,
@@ -103,5 +122,12 @@ function migrate(db: DatabaseSyncType): void {
   const cols = (db.prepare('PRAGMA table_info(notes)').all() as { name: string }[]).map((c) => c.name);
   if (!cols.includes('is_template')) {
     db.exec('ALTER TABLE notes ADD COLUMN is_template INTEGER NOT NULL DEFAULT 0');
+  }
+  // is_template = 2 marks built-in starter templates: per-device, never synced.
+  const done = db.prepare("SELECT 1 FROM meta WHERE key = 'migration.builtin-templates'").get();
+  if (!done) {
+    db.exec(`UPDATE notes SET is_template = 2 WHERE is_template = 1 AND created_at = updated_at AND title IN
+      ('Project plan','To-do list','Weekly review','Meeting notes','Plan de proyecto','Lista de tareas','Revisión semanal','Acta de reunión')`);
+    db.exec("INSERT INTO meta (key, value) VALUES ('migration.builtin-templates', '1')");
   }
 }
