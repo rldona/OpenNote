@@ -77,6 +77,16 @@ export function App() {
   }, [view, debouncedQuery, taskStatus]);
 
   useEffect(() => void refreshMeta(), [refreshMeta]);
+
+  // Notes can also arrive from outside this window (quick note, web clipper, sync): refresh on focus.
+  useEffect(() => {
+    const onFocus = () => {
+      void refreshList();
+      void refreshMeta();
+    };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [refreshList, refreshMeta]);
   useEffect(() => void refreshList(), [refreshList]);
 
   useEffect(() => {

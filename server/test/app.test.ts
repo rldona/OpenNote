@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdtempSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -544,5 +544,41 @@ describe('startServer', () => {
       await s.close();
     }
     await expect(fetch(`${s.url}/api/notebooks`)).rejects.toThrow();
+  });
+});
+
+describe('web UI hosting', () => {
+  it('serves the UI with a strict Content-Security-Policy on every HTML response', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'opennote-ui-'));
+    const dist = join(dir, 'dist');
+    mkdirSync(dist);
+    writeFileSync(join(dist, 'index.html'), '<!doctype html><div id="root"></div>');
+    const s = await startServer({ dataDir: join(dir, 'data'), webDist: dist, port: 0 });
+    try {
+      for (const path of ['/', '/some/app/route']) {
+        const res = await fetch(`${s.url}${path}`);
+        expect(res.status).toBe(200);
+        expect(await res.text()).toContain('id="root"');
+        const csp = res.headers.get('content-security-policy') ?? '';
+        expect(csp).toContain("script-src 'self'");
+        expect(csp).toContain("frame-ancestors 'none'");
+        expect(csp).not.toContain("script-src 'self' 'unsafe");
+      }
+      // API responses are JSON and carry no page policy.
+      expect((await fetch(`${s.url}/api/notebooks`)).headers.get('content-security-policy')).toBeNull();
+    } finally {
+      await s.close();
+    }
+  });
+});
+
+describe('tag cleanup', () => {
+  it('removes tags that no note uses after a permanent delete', () => {
+    const { store } = setup();
+    const a = store.createNote({ title: 'a', tags: ['solo', 'shared'] });
+    store.createNote({ title: 'b', tags: ['shared'] });
+    expect(store.listTags().map((t) => t.name)).toEqual(['shared', 'solo']);
+    store.deleteNotePermanently(a.id);
+    expect(store.listTags().map((t) => t.name)).toEqual(['shared']);
   });
 });

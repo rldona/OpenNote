@@ -8,7 +8,8 @@
   "workspaces": [
     "server",
     "web",
-    "extension"
+    "extension",
+    "desktop"
   ],
   "engines": {
     "node": ">=24"
@@ -20,8 +21,10 @@
     "build": "npm run build -w web",
     "start": "npm run build && npm run start -w server",
     "test": "npm run test -w server",
-    "typecheck": "npm run typecheck -w server && npm run typecheck -w web && npm run typecheck -w extension",
-    "build:extension": "npm run build -w extension"
+    "typecheck": "npm run typecheck -w server && npm run typecheck -w web && npm run typecheck -w extension && npm run typecheck -w desktop",
+    "build:extension": "npm run build -w extension",
+    "desktop:dev": "npm run build && npm run dev -w desktop",
+    "desktop:build": "npm run build && npm run dist -w desktop"
   },
   "devDependencies": {
     "npm-run-all2": "^7.0.2"

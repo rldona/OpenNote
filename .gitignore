@@ -5,3 +5,5 @@ data
 .DS_Store
 extension/dist
 extension/dist-firefox
+desktop/dist
+desktop/release

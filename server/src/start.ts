@@ -30,6 +30,20 @@ export interface RunningServer {
   close(): Promise<void>;
 }
 
+/** The UI is the only page of this origin: no remote scripts, frames or plugins, ever. */
+export const CONTENT_SECURITY_POLICY = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: http: https:",
+  "media-src 'self' blob:",
+  "connect-src 'self'",
+  "object-src 'none'",
+  "base-uri 'none'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+].join('; ');
+
 /** serve-static resolves `root` relative to the working directory. */
 function relativeTo(abs: string): string {
   const cwd = process.cwd();
@@ -47,6 +61,11 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
 
   if (opts.webDist && existsSync(join(opts.webDist, 'index.html'))) {
     const indexPath = join(opts.webDist, 'index.html');
+    // Any HTML page (the index is served by serveStatic for "/", and by the fallback for app routes).
+    app.use('*', async (c, next) => {
+      await next();
+      if (c.res.headers.get('content-type')?.startsWith('text/html')) c.header('Content-Security-Policy', CONTENT_SECURITY_POLICY);
+    });
     app.use('/*', serveStatic({ root: relativeTo(resolve(opts.webDist)) }));
     // Read on every request so a rebuilt UI is picked up without restarting.
     app.get('*', (c) => c.html(readFileSync(indexPath, 'utf8')));

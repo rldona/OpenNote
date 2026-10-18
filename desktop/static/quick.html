@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<title>Quick note</title>
+<style>
+  :root { color-scheme: light dark; --accent: #00a82d; }
+  body { margin: 0; font: 14px/1.5 system-ui, sans-serif; display: flex; flex-direction: column; height: 100vh; }
+  textarea { flex: 1; border: 0; outline: none; resize: none; padding: 14px; font: inherit; background: transparent; color: inherit; }
+  footer { display: flex; gap: 8px; align-items: center; padding: 8px 12px; border-top: 1px solid color-mix(in srgb, currentColor 18%, transparent); }
+  small { flex: 1; opacity: .6; }
+  button { border: 1px solid color-mix(in srgb, currentColor 25%, transparent); border-radius: 6px; padding: 5px 14px; background: none; color: inherit; font: inherit; cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+</style>
+</head>
+<body>
+<textarea id="text" autofocus aria-label="Quick note" placeholder="First line is the title…"></textarea>
+<footer>
+  <small id="hint">Ctrl/Cmd+Enter to save · Esc to cancel</small>
+  <button id="cancel">Cancel</button>
+  <button id="save" class="primary">Save</button>
+</footer>
+<script>
+  const text = document.getElementById('text');
+  const hint = document.getElementById('hint');
+  const save = async () => {
+    if (!text.value.trim()) return window.opennote.quickClose();
+    try { await window.opennote.quickSave(text.value); text.value = ''; window.opennote.quickClose(); }
+    catch (e) { hint.textContent = 'Could not save: ' + e.message; }
+  };
+  document.getElementById('save').onclick = save;
+  document.getElementById('cancel').onclick = () => { text.value = ''; window.opennote.quickClose(); };
+  addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { text.value = ''; window.opennote.quickClose(); }
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); save(); }
+  });
+  addEventListener('focus', () => text.focus());
+</script>
+</body>
+</html>

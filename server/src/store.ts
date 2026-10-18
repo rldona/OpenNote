@@ -216,6 +216,7 @@ export class NoteStore {
     mkdirSync(attachmentsDir, { recursive: true });
     if (this.count('notebooks') === 0) this.createNotebook('Notes');
     this.backfillTasks();
+    this.db.exec('DELETE FROM tags WHERE id NOT IN (SELECT tag_id FROM note_tags)');
   }
 
   /** Closes the database. The store must not be used afterwards. */
@@ -405,6 +406,7 @@ export class NoteStore {
     this.tx(() => {
       this.db.prepare('DELETE FROM notes_fts WHERE note_id = ?').run(id);
       this.db.prepare('DELETE FROM notes WHERE id = ?').run(id);
+      this.db.exec('DELETE FROM tags WHERE id NOT IN (SELECT tag_id FROM note_tags)');
       if (tombstone) {
         this.db
           .prepare('INSERT OR REPLACE INTO sync_tombstones (note_id, deleted_at, pushed) VALUES (?, ?, 0)')

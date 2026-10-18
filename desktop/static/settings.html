@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<title>OpenNote settings</title>
+<style>
+  :root { color-scheme: light dark; --accent: #00a82d; }
+  body { margin: 0; padding: 18px 20px; font: 14px/1.5 system-ui, sans-serif; }
+  h1 { font-size: 17px; margin: 0 0 12px; }
+  label { display: block; margin: 12px 0 2px; font-weight: 600; }
+  code { background: color-mix(in srgb, currentColor 10%, transparent); padding: 1px 6px; border-radius: 4px; word-break: break-all; }
+  input { width: 100%; box-sizing: border-box; padding: 6px 10px; font: inherit; }
+  button { border: 1px solid color-mix(in srgb, currentColor 25%, transparent); border-radius: 6px; padding: 5px 14px; background: none; color: inherit; font: inherit; cursor: pointer; margin-top: 6px; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  .row { display: flex; gap: 8px; align-items: center; }
+  .row input { flex: 1; }
+  #msg { min-height: 1.4em; margin-top: 8px; }
+  .err { color: #c0392b; }
+  small { opacity: .65; }
+</style>
+</head>
+<body>
+<h1>OpenNote settings</h1>
+<label>Notes folder</label>
+<div><code id="dir"></code></div>
+<div><button id="chooseDir">Change folder…</button> <small>OpenNote restarts to use the new folder. Existing notes are not moved.</small></div>
+<label for="shortcut">Quick note shortcut</label>
+<div class="row"><input id="shortcut" spellcheck="false"><button id="saveShortcut" class="primary">Apply</button></div>
+<small>Examples: CommandOrControl+Alt+N, Control+Shift+Space. Some Linux desktops (Wayland) do not allow global shortcuts.</small>
+<div id="msg" role="status"></div>
+<label>About</label>
+<div><small id="about"></small></div>
+<div><button id="close">Close</button></div>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const say = (t, err) => { $('msg').textContent = t; $('msg').className = err ? 'err' : ''; };
+  (async () => {
+    const s = await window.opennote.getSettings();
+    $('dir').textContent = s.dataDir;
+    $('shortcut').value = s.quickNoteShortcut;
+    $('about').textContent = 'OpenNote ' + s.version + ' · Electron ' + s.electron + ' · ' + s.platform + ' · notes stay on this computer';
+    if (!s.shortcutRegistered) say('The quick note shortcut could not be registered. Pick another one.', true);
+  })();
+  $('saveShortcut').onclick = async () => {
+    const r = await window.opennote.setShortcut($('shortcut').value.trim());
+    r.ok ? say('Shortcut applied') : say(r.error || 'Invalid shortcut', true);
+  };
+  $('chooseDir').onclick = async () => { await window.opennote.chooseDataDir(); };
+  $('close').onclick = () => window.opennote.closeSettings();
+</script>
+</body>
+</html>
