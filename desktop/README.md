@@ -27,7 +27,11 @@ you can download and try a build from the *Actions* tab.
 The installers are **not code signed or notarized** (that needs paid developer certificates), so the first launch
 shows a warning:
 
-- **macOS** (Gatekeeper): right-click the app → *Open* → *Open*, or run `xattr -dr com.apple.quarantine /Applications/OpenNote.app`.
+- **macOS** (Gatekeeper): the app has a valid *ad-hoc* signature but no Apple Developer ID, so macOS says it cannot verify
+  the developer. Open it once from *System Settings → Privacy & Security → Open Anyway* (macOS 15 and later removed the
+  right-click bypass), or run `xattr -dr com.apple.quarantine /Applications/OpenNote.app` once in the Terminal.
+  If macOS says OpenNote **"is damaged and can't be opened"**, you have a build from before this signature fix (v0.1.0):
+  the same `xattr` command opens it, and newer releases do not need it.
 - **Windows** (SmartScreen): *More info* → *Run anyway*.
 - **Linux**: no warning for `.deb` packages.
 

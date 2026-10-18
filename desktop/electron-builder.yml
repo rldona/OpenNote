@@ -19,9 +19,13 @@ asar: true
 
 mac:
   category: public.app-category.productivity
-  # Never pick a signing identity from the developer's keychain by accident. To sign and notarize a release build,
-  # remove this line and provide CSC_NAME (or CSC_LINK/CSC_KEY_PASSWORD) and the APPLE_* notarization variables.
-  identity: null
+  # '-' = ad-hoc signature: no certificate involved and none is ever picked from a keychain by accident. Without a valid
+  # signature macOS reports "OpenNote is damaged" for downloaded apps; with it the user gets the normal "unidentified
+  # developer" prompt. For a real signed + notarized release, replace it with CSC_NAME / CSC_LINK, set hardenedRuntime
+  # to true and provide the APPLE_* notarization variables.
+  identity: '-'
+  # Hardened runtime is only useful together with notarization; with an ad-hoc signature it blocks Electron's own libraries.
+  hardenedRuntime: false
   extendInfo:
     NSMicrophoneUsageDescription: OpenNote uses the microphone only when you record an audio note.
   icon: build/icon.png
