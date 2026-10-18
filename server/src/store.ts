@@ -218,6 +218,11 @@ export class NoteStore {
     this.backfillTasks();
   }
 
+  /** Closes the database. The store must not be used afterwards. */
+  close(): void {
+    this.db.close();
+  }
+
   private count(table: string): number {
     return (this.db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get() as Row).n as number;
   }

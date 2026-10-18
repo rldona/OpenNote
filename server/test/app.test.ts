@@ -525,3 +525,21 @@ describe('markdown / html / zip import and export', () => {
     expect(fresh.store.listAttachments(back.id)).toHaveLength(1);
   });
 });
+
+import { startServer } from '../src/start.js';
+
+describe('startServer', () => {
+  it('serves the API on a free loopback port and closes cleanly', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'opennote-start-'));
+    const s = await startServer({ dataDir: dir, port: 0 });
+    try {
+      expect(s.port).toBeGreaterThan(0);
+      const res = await fetch(`${s.url}/api/notebooks`);
+      expect(res.status).toBe(200);
+      expect(await res.json()).toHaveLength(1);
+    } finally {
+      await s.close();
+    }
+    await expect(fetch(`${s.url}/api/notebooks`)).rejects.toThrow();
+  });
+});
