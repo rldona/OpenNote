@@ -16,6 +16,12 @@ when a `v*` tag is pushed; the section of the tag becomes the release notes.
 
 ### Added
 - `CHANGELOG.md`, and a repository cover image with the icon and name.
+- `?lang=en` / `?lang=es` selects the interface language (remembered); otherwise the browser's language is used.
+
+### Changed
+- CI uses the Node 24 versions of the GitHub Actions (checkout, setup-node, upload/download-artifact, gh-release) and pins
+  Ubuntu 24.04, so builds do not change when `ubuntu-latest` moves to a newer image.
+- Release notes are taken from this file.
 
 ## [0.1.0] - 2026-10-18
 
