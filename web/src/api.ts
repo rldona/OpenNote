@@ -5,8 +5,9 @@ export interface NoteSummary {
   tags: string[]; attachmentCount: number;
 }
 export interface Note extends NoteSummary { content: string; sourceUrl: string | null }
-export interface TagCount { name: string; count: number }
+export interface TagCount { name: string; count: number; total: number; virtual: boolean }
 export interface SavedSearch { id: string; name: string; query: string }
+export interface Task { noteId: string; noteTitle: string; notebookId: string; idx: number; text: string; checked: boolean; due: string | null }
 export interface Version { id: number; title: string; savedAt: number }
 
 async function req<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -45,6 +46,16 @@ export const api = {
   searches: () => req<SavedSearch[]>('GET', '/searches'),
   saveSearch: (name: string, query: string) => req<SavedSearch>('POST', '/searches', { name, query }),
   deleteSearch: (id: string) => req<void>('DELETE', `/searches/${id}`),
+  templates: () => req<NoteSummary[]>('GET', '/templates'),
+  saveTemplate: (noteId: string) => req<Note>('POST', '/templates', { noteId }),
+  useTemplate: (id: string, notebookId?: string) => req<Note>('POST', `/templates/${id}/use`, { notebookId }),
+  deleteTemplate: (id: string) => req<void>('DELETE', `/templates/${id}`),
+  duplicate: (id: string) => req<Note>('POST', `/notes/${id}/duplicate`),
+  merge: (ids: string[]) => req<Note>('POST', '/notes/merge', { ids }),
+  backlinks: (id: string) => req<{ id: string; title: string }[]>('GET', `/notes/${id}/backlinks`),
+  tasks: (status: 'open' | 'done') => req<Task[]>('GET', `/tasks?status=${status}`),
+  updateTask: (noteId: string, idx: number, patch: { checked?: boolean; due?: string | null }) =>
+    req<void>('PATCH', `/tasks/${noteId}/${idx}`, patch),
   versions: (id: string) => req<Version[]>('GET', `/notes/${id}/versions`),
   restoreVersion: (id: string, v: number) => req<Note>('POST', `/notes/${id}/versions/${v}/restore`),
   async upload(noteId: string, file: File): Promise<{ url: string; filename: string; mime: string }> {
@@ -53,6 +64,15 @@ export const api = {
     const res = await fetch(`/api/notes/${noteId}/attachments`, { method: 'POST', body: form });
     if (!res.ok) throw new Error('upload failed');
     return res.json();
+  },
+  async importMarkdown(file: File, notebook: string): Promise<{ notes: number; attachments: number }> {
+    const res = await fetch(`/api/import/markdown?notebook=${encodeURIComponent(notebook)}&filename=${encodeURIComponent(file.name)}`, {
+      method: 'POST',
+      body: await file.arrayBuffer(),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error ?? 'import failed');
+    return data;
   },
   async importEnex(file: File, notebook: string): Promise<{ notes: number; attachments: number }> {
     const res = await fetch(`/api/import/enex?notebook=${encodeURIComponent(notebook)}`, { method: 'POST', body: await file.text() });

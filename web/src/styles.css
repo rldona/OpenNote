@@ -69,6 +69,7 @@ button.primary {
 }
 .nav-label span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .count { opacity: .6; font-size: 12px; }
+.twisty { width: 16px; background: none; border: 0; padding: 0; opacity: .7; flex: none; }
 .row-actions { display: none; padding-right: 4px; }
 .nav-item:hover .row-actions, .nav-item:focus-within .row-actions { display: flex; }
 .row-actions button { background: none; border: 0; opacity: .7; padding: 2px 4px; }
@@ -179,8 +180,44 @@ button.primary {
 }
 
 @media (max-width: 900px) {
-  .app { grid-template-columns: 200px 1fr; }
-  .editor-pane { grid-column: 1 / -1; grid-row: 2; border-top: 1px solid var(--border); }
-  .app { grid-template-rows: 45vh 1fr; }
-  .sidebar, .list-pane { grid-row: 1; }
+  /* Narrow window: sidebar keeps the full height, list above editor on the right. */
+  .app { grid-template-columns: 200px minmax(0, 1fr); grid-template-rows: minmax(0, 45vh) minmax(0, 1fr); }
+  .sidebar { grid-column: 1; grid-row: 1 / span 2; }
+  .list-pane { grid-column: 2; grid-row: 1; }
+  .editor-pane { grid-column: 2; grid-row: 2; border-top: 1px solid var(--border); }
 }
+
+/* tasks */
+.due-picker { position: absolute; width: 0; height: 0; opacity: 0; pointer-events: none; }
+.ProseMirror ul[data-type='taskList'] li[data-due]::after {
+  content: '📅 ' attr(data-due); font-size: 12px; color: var(--muted); background: var(--bg-hover);
+  border-radius: 999px; padding: 0 8px; align-self: center; white-space: nowrap;
+}
+.tasks { overflow-y: auto; flex: 1; padding: 0 14px 14px; }
+.tasks .empty { color: var(--muted); text-align: center; padding: 32px 0; }
+.tasks h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 16px 0 4px; }
+.tasks h3.overdue { color: var(--danger); }
+.tasks ul { list-style: none; margin: 0; padding: 0; }
+.task-tabs { display: flex; gap: 6px; padding: 4px 0 8px; }
+.task-tabs button { background: none; border: 1px solid var(--border); border-radius: 999px; padding: 2px 12px; }
+.task-tabs button.active { background: var(--bg-active); border-color: var(--accent); }
+.task-row { display: flex; gap: 8px; align-items: flex-start; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.task-row input { margin-top: 4px; }
+.task-text { flex: 1; min-width: 0; text-align: left; background: none; border: 0; padding: 0; display: flex; flex-direction: column; }
+.task-text .done { text-decoration: line-through; color: var(--muted); }
+.task-text small { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* templates, selection, backlinks, note picker */
+.template-select { margin: 0 4px 12px; background: rgba(255,255,255,.08); color: inherit; border: 1px solid rgba(255,255,255,.15); border-radius: 6px; padding: 5px 8px; width: calc(100% - 8px); }
+.template-select option { color: #111; }
+.selection-bar { display: flex; gap: 8px; align-items: center; padding: 6px 14px; background: var(--bg-active); border-bottom: 1px solid var(--border); }
+.selection-bar span { flex: 1; }
+.selection-bar button { border: 1px solid var(--border); border-radius: 6px; background: none; padding: 2px 10px; }
+.selection-bar button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.selection-bar button:disabled { opacity: .5; cursor: not-allowed; }
+.note-item.checked { background: var(--bg-active); box-shadow: inset 3px 0 var(--accent); }
+.backlinks { width: 100%; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; color: var(--muted); font-size: 12px; }
+.backlinks .chip { border: 0; cursor: pointer; }
+.pick { display: flex; flex-direction: column; text-align: left; width: 100%; background: none; border: 0; padding: 4px 0; }
+.pick small { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.modal input[type='search'] { padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); }

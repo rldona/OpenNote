@@ -225,3 +225,303 @@ describe('ENEX', () => {
     expect(md).toContain('- [x] done');
   });
 });
+
+describe('advanced search', () => {
+  const seed = async (app: ReturnType<typeof createApp>) => {
+    const mk = (b: object) => json(app, 'POST', '/api/notes', b);
+    await mk({ title: 'Alpha plan', content: '<p>budget review</p>', tags: ['work/projects/alpha'] });
+    await mk({ title: 'Beta plan', content: '<p>budget draft</p>', tags: ['work/projects/beta', 'urgent'] });
+    await mk({ title: 'Groceries', content: '<p>milk bread</p>', tags: ['home'] });
+  };
+  const titles = async (app: ReturnType<typeof createApp>, q: string) =>
+    ((await json(app, 'GET', `/api/notes?q=${encodeURIComponent(q)}`)).data as any[]).map((n) => n.title).sort();
+
+  it('matches descendants of a hierarchical tag', async () => {
+    const { app } = setup();
+    await seed(app);
+    expect(await titles(app, 'tag:work')).toEqual(['Alpha plan', 'Beta plan']);
+    expect(await titles(app, 'tag:work/projects/beta')).toEqual(['Beta plan']);
+    expect(await titles(app, 'tag:wor')).toEqual([]);
+    const tags = (await json(app, 'GET', '/api/tags')).data as any[];
+    expect(tags.find((t) => t.name === 'work/projects')).toMatchObject({ virtual: true, count: 0, total: 2 });
+    expect(tags.find((t) => t.name === 'work')).toMatchObject({ virtual: true, total: 2 });
+  });
+
+  it('reports tag totals including descendants', async () => {
+    const { app, store } = setup();
+    await seed(app);
+    store.setTags(store.listNotes({ q: 'milk' })[0]!.id, ['work', 'home']);
+    const totals = Object.fromEntries(store.listTags().map((t) => [t.name, [t.count, t.total]]));
+    expect(totals['work']).toEqual([1, 3]);
+    expect(totals['work/projects/alpha']).toEqual([1, 1]);
+  });
+
+  it('supports negation, intitle and any:', async () => {
+    const { app } = setup();
+    await seed(app);
+    expect(await titles(app, 'budget -beta')).toEqual(['Alpha plan']);
+    expect(await titles(app, '-tag:work')).toEqual(['Groceries']);
+    expect(await titles(app, 'intitle:plan')).toEqual(['Alpha plan', 'Beta plan']);
+    expect(await titles(app, 'intitle:budget')).toEqual([]);
+    expect(await titles(app, 'any: milk review')).toEqual(['Alpha plan', 'Groceries']);
+    expect(await titles(app, 'milk review')).toEqual([]);
+  });
+
+  it('filters by created/updated dates', async () => {
+    const { app, store } = setup();
+    const day = 86_400_000;
+    store.createNote({ title: 'old', createdAt: Date.now() - 40 * day, updatedAt: Date.now() - 40 * day });
+    store.createNote({ title: 'new' });
+    expect(await titles(app, 'created:month')).toEqual(['new']);
+    expect(await titles(app, '-created:month')).toEqual(['old']);
+    expect(await titles(app, 'updated:day-1')).toEqual(['new']);
+    expect(await titles(app, 'created:20000101')).toEqual(['new', 'old']);
+  });
+
+  it('filters by source url and attachments', async () => {
+    const { app, store } = setup();
+    store.createNote({ title: 'clip', sourceUrl: 'https://example.com/article' });
+    const withFile = store.createNote({ title: 'file' });
+    store.addAttachment(withFile.id, { filename: 'a.txt', mime: 'text/plain', data: new Uint8Array([1]) });
+    expect(await titles(app, 'sourceUrl:example.com')).toEqual(['clip']);
+    expect(await titles(app, 'resource:any')).toEqual(['file']);
+    expect(await titles(app, '-resource:any')).toEqual(['clip']);
+  });
+});
+
+describe('tasks', () => {
+  const list = (items: [string, boolean, string?][]) =>
+    `<ul data-type="taskList">${items
+      .map(([t, c, due]) => `<li data-type="taskItem" data-checked="${c}"${due ? ` data-due="${due}"` : ''}><p>${t}</p></li>`)
+      .join('')}</ul>`;
+  const day = (offset: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() + offset);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  const tasks = async (app: ReturnType<typeof createApp>, qs = '') =>
+    ((await json(app, 'GET', `/api/tasks${qs}`)).data as any[]).map((t) => t.text);
+
+  it('indexes checklist items across notes and filters by due date', async () => {
+    const { app } = setup();
+    await json(app, 'POST', '/api/notes', {
+      title: 'A',
+      content: list([['late', false, day(-2)], ['today', false, day(0)], ['soon', false, day(3)], ['nodate', false], ['done', true, day(0)]]),
+    });
+    expect(await tasks(app)).toEqual(['late', 'today', 'soon', 'nodate']);
+    expect(await tasks(app, '?due=overdue')).toEqual(['late']);
+    expect(await tasks(app, '?due=today')).toEqual(['today']);
+    expect(await tasks(app, '?due=week')).toEqual(['today', 'soon']);
+    expect(await tasks(app, '?due=none')).toEqual(['nodate']);
+    expect(await tasks(app, '?status=done')).toEqual(['done']);
+  });
+
+  it('toggles a task and sets its due date through the note content', async () => {
+    const { app } = setup();
+    const { data: n } = await json(app, 'POST', '/api/notes', { title: 'T', content: list([['one', false], ['two', false]]) });
+    expect((await json(app, 'PATCH', `/api/tasks/${n.id}/1`, { checked: true, due: day(1) })).res.status).toBe(204);
+    const note = (await json(app, 'GET', `/api/notes/${n.id}`)).data;
+    expect(note.content).toMatch(/<li (?=[^>]*data-checked="true")(?=[^>]*data-due="\d{4}-\d{2}-\d{2}")[^>]*><p>two/);
+    expect(await tasks(app)).toEqual(['one']);
+    expect(await tasks(app, '?status=done')).toEqual(['two']);
+    expect((await json(app, 'PATCH', `/api/tasks/${n.id}/9`, { checked: true })).res.status).toBe(404);
+    expect((await json(app, 'PATCH', `/api/tasks/${n.id}/0`, { due: 'tomorrow' })).res.status).toBe(400);
+  });
+
+  it('drops tasks of trashed notes and keeps them in sync on edit', async () => {
+    const { app } = setup();
+    const { data: n } = await json(app, 'POST', '/api/notes', { title: 'T', content: list([['x', false]]) });
+    await json(app, 'PATCH', `/api/notes/${n.id}`, { content: list([['y', false]]) });
+    expect(await tasks(app)).toEqual(['y']);
+    await json(app, 'DELETE', `/api/notes/${n.id}`);
+    expect(await tasks(app)).toEqual([]);
+  });
+});
+
+describe('templates, duplicate, merge and links', () => {
+  const png = new Uint8Array([137, 80, 78, 71]);
+
+  it('creates notes from a template, filling placeholders, and hides templates from lists', async () => {
+    const { app, store } = setup();
+    const { data: src } = await json(app, 'POST', '/api/notes', { title: 'Daily {{date}}', content: '<p>at {{time}}</p>' });
+    const { data: tpl } = await json(app, 'POST', '/api/templates', { noteId: src.id });
+    expect((await json(app, 'GET', '/api/templates')).data).toHaveLength(1);
+    // The template copy is not a regular note: lists, search and counts ignore it.
+    expect((await json(app, 'GET', '/api/notes')).data).toHaveLength(1);
+    expect(store.listNotebooks()[0]!.noteCount).toBe(1);
+
+    const { res, data: made } = await json(app, 'POST', `/api/templates/${tpl.id}/use`, {});
+    expect(res.status).toBe(201);
+    expect(made.title).toMatch(/^Daily \d{4}-\d{2}-\d{2}$/);
+    expect(made.content).toMatch(/at \d{2}:\d{2}/);
+    expect((await json(app, 'GET', '/api/notes')).data).toHaveLength(2);
+    // A regular note is not a template.
+    expect((await json(app, 'POST', `/api/templates/${src.id}/use`, {})).res.status).toBe(400);
+    await json(app, 'DELETE', `/api/templates/${tpl.id}`);
+    expect((await json(app, 'GET', '/api/templates')).data).toHaveLength(0);
+  });
+
+  it('seeds starter templates once, in the requested language', () => {
+    const { store } = setup();
+    store.seedTemplates('es_ES.UTF-8');
+    store.seedTemplates('es_ES.UTF-8');
+    const titles = store.listTemplates().map((t) => t.title);
+    expect(titles).toHaveLength(4);
+    expect(titles).toContain('Acta de reunión');
+  });
+
+  it('duplicates a note with its own copy of the attachments', async () => {
+    const { app, store } = setup();
+    const note = store.createNote({ title: 'Pic', tags: ['x'] });
+    const att = store.addAttachment(note.id, { filename: 'p.png', mime: 'image/png', data: png });
+    store.updateNote(note.id, { content: `<p><img src="/api/attachments/${att.id}"></p>` });
+
+    const { res, data: copy } = await json(app, 'POST', `/api/notes/${note.id}/duplicate`);
+    expect(res.status).toBe(201);
+    expect(copy.title).toBe('Pic (copy)');
+    expect(copy.tags).toEqual(['x']);
+    const [copied] = store.listAttachments(copy.id);
+    expect(copied!.id).not.toBe(att.id);
+    expect(copy.content).toContain(`/api/attachments/${copied!.id}`);
+    expect(copy.content).not.toContain(att.id);
+    // Deleting the original must not break the copy.
+    store.deleteNotePermanently(note.id);
+    expect(store.getAttachment(copied!.id).data.length).toBe(4);
+  });
+
+  it('merges notes: content, tags and files move to the first note, the rest go to the trash', async () => {
+    const { app, store } = setup();
+    const a = store.createNote({ title: 'A', content: '<p>one</p>', tags: ['t1'] });
+    const b = store.createNote({ title: 'B', content: '<p>two</p>', tags: ['t2'] });
+    const att = store.addAttachment(b.id, { filename: 'f.txt', mime: 'text/plain', data: png });
+
+    const { data: merged } = await json(app, 'POST', '/api/notes/merge', { ids: [a.id, b.id] });
+    expect(merged.id).toBe(a.id);
+    expect(merged.content).toContain('<p>one</p><hr><h2>B</h2><p>two</p>');
+    expect(merged.tags).toEqual(['t1', 't2']);
+    expect(store.listAttachments(a.id).map((x) => x.id)).toEqual([att.id]);
+    expect(store.getNote(b.id).trashedAt).not.toBeNull();
+    expect(store.listNotes({ q: 'two' }).map((n) => n.id)).toEqual([a.id]);
+    expect((await json(app, 'POST', '/api/notes/merge', { ids: [a.id] })).res.status).toBe(400);
+  });
+
+  it('finds backlinks from #/note/<id> links', async () => {
+    const { app, store } = setup();
+    const target = store.createNote({ title: 'Target' });
+    store.createNote({ title: 'Linker', content: `<p><a href="#/note/${target.id}">Target</a></p>` });
+    store.createNote({ title: 'Unrelated', content: '<p>nothing</p>' });
+    const { data } = await json(app, 'GET', `/api/notes/${target.id}/backlinks`);
+    expect(data.map((n: any) => n.title)).toEqual(['Linker']);
+  });
+});
+
+import { strToU8, unzipSync, zipSync } from 'fflate';
+import { markdownToHtml } from '../src/import.js';
+
+describe('markdown / html / zip import and export', () => {
+  const post = (app: ReturnType<typeof createApp>, qs: string, body: BodyInit) =>
+    app.request(`/api/import/markdown?${qs}`, { method: 'POST', headers: H, body });
+
+  it('converts markdown (headings, GFM task lists, code) to editor HTML', () => {
+    const html = markdownToHtml('## Title\n\n- [x] done\n- [ ] todo\n\n- plain\n\n`code`');
+    expect(html).toContain('<h2>Title</h2>');
+    expect(html).toContain('<ul data-type="taskList">');
+    expect(html.match(/data-type="taskItem"/g)).toHaveLength(2);
+    expect(html).toMatch(/data-checked="true"/);
+    expect(html).toContain('<li><p>plain</p>');
+    // tasks and bullets end up in separate lists
+    expect(html.match(/<ul/g)).toHaveLength(2);
+    expect(html).toContain('<p>done</p>');
+    expect(html).toContain('<code>code</code>');
+  });
+
+  it('imports a single markdown file with front matter and a title heading', async () => {
+    const { app, store } = setup();
+    const md = '---\ntitle: "Ignored by h1? no"\ntags: [a, "b c"]\ncreated: 2023-05-01T10:00:00Z\n---\n# Trip plan\n\nBring **water**.\n\n- [ ] tickets\n';
+    const res = await post(app, 'notebook=Docs&filename=trip.md', md);
+    expect(res.status).toBe(201);
+    const note = store.getNote(store.listNotes({ q: 'water' })[0]!.id);
+    expect(note.title).toBe('Ignored by h1? no');
+    expect(note.tags).toEqual(['a', 'b c']);
+    expect(note.createdAt).toBe(Date.parse('2023-05-01T10:00:00Z'));
+    expect(note.content).toContain('<strong>water</strong>');
+    expect(note.content).toContain('data-type="taskItem"');
+    expect(store.listNotebooks().map((n) => n.name)).toContain('Docs');
+  });
+
+  it('uses the first heading as title and strips scripts from html', async () => {
+    const { app, store } = setup();
+    await post(app, 'filename=n.md', '# From heading\n\nbody <script>alert(1)</script><img src=x onerror=alert(1)>');
+    const n = store.getNote(store.listNotes({})[0]!.id);
+    expect(n.title).toBe('From heading');
+    expect(n.content).not.toMatch(/script|onerror/i);
+
+    await post(app, 'notebook=H&filename=page.html', '<html><head><title>Page title</title></head><body><p onclick="x()">hi</p><script>1</script></body></html>');
+    const h = store.listNotes({ q: 'hi' })[0]!;
+    expect(h.title).toBe('Page title');
+    expect(store.getNote(h.id).content).toBe('<p>hi</p>');
+  });
+
+  it('imports a zip vault: folders → notebooks/stacks, relative images → attachments', async () => {
+    const { app, store } = setup();
+    const png = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+    const zip = zipSync({
+      'Root note.md': strToU8('# Root\n\nat the top'),
+      'Work/Plan.md': strToU8('# Plan\n\n![pic](attachments/a%20b.png)\n\n[doc](../Work/attachments/a%20b.png)'),
+      'Work/attachments/a b.png': png,
+      'Stack/Inner/Deep.md': strToU8('# Deep\n\ndeep text'),
+      '__MACOSX/Work/._Plan.md': strToU8('junk'),
+    });
+    const res = await post(app, 'notebook=Vault', zip as Uint8Array<ArrayBuffer>);
+    expect(res.status).toBe(201);
+    expect(await res.json()).toMatchObject({ notes: 3, attachments: 1 });
+
+    const books = store.listNotebooks();
+    expect(books.map((b) => b.name).sort()).toEqual(['Inner', 'Notes', 'Vault', 'Work']);
+    expect(books.find((b) => b.name === 'Inner')!.stack).toBe('Stack');
+    const plan = store.getNote(store.listNotes({ q: 'plan' })[0]!.id);
+    const [att] = store.listAttachments(plan.id);
+    expect(att).toMatchObject({ filename: 'a b.png', mime: 'image/png' });
+    expect(plan.content).toContain(`<img src="/api/attachments/${att!.id}"`);
+    expect(plan.content).toContain(`<a href="/api/attachments/${att!.id}"`);
+    expect(store.getAttachment(att!.id).data.length).toBe(8);
+  });
+
+  it('rejects empty archives and corrupt zips', async () => {
+    const { app } = setup();
+    const empty = zipSync({ 'img.png': new Uint8Array([1]) });
+    expect((await post(app, '', empty as Uint8Array<ArrayBuffer>)).status).toBe(400);
+  });
+
+  it('exports a zip with notebooks, markdown, attachments and round-trips through import', async () => {
+    const { app, store } = setup();
+    const nb = store.createNotebook('Trips', 'Life');
+    const note = store.createNote({ notebookId: nb.id, title: 'Rome / 2024', tags: ['travel'], content: '<h2>Day 1</h2><p>Colosseum</p>' });
+    const att = store.addAttachment(note.id, { filename: 'map.png', mime: 'image/png', data: new Uint8Array([1, 2, 3]) });
+    store.updateNote(note.id, { content: `<p>Colosseum</p><p><img src="/api/attachments/${att.id}"></p>` });
+    store.createNote({ notebookId: nb.id, title: 'Rome / 2024', content: '<p>duplicate title</p>' });
+
+    const res = await app.request('/api/export/zip', { headers: H });
+    expect(res.headers.get('content-type')).toBe('application/zip');
+    const files = unzipSync(new Uint8Array(await res.arrayBuffer()));
+    const names = Object.keys(files).sort();
+    expect(names).toContain('Life/Trips/Rome _ 2024.md');
+    expect(names).toContain('Life/Trips/Rome _ 2024 (2).md');
+    const assetName = names.find((n) => n.startsWith('Life/Trips/attachments/'))!;
+    expect(assetName).toMatch(/attachments\/[0-9a-f]{8}-map\.png$/);
+    expect([...files[assetName]!]).toEqual([1, 2, 3]);
+    const md = new TextDecoder().decode(files['Life/Trips/Rome _ 2024.md']);
+    expect(md).toContain(`![](${encodeURI(`attachments/${assetName.split('/').pop()}`)})`);
+    expect(md).toContain('tags: ["travel"]');
+
+    // Import the export into a fresh store: structure and files survive.
+    const fresh = setup();
+    const imp = await post(fresh.app, 'notebook=X', new Uint8Array(await (await app.request('/api/export/zip', { headers: H })).arrayBuffer()) as Uint8Array<ArrayBuffer>);
+    expect(await imp.json()).toMatchObject({ notes: 2, attachments: 1 });
+    const trips = fresh.store.listNotebooks().find((b) => b.name === 'Trips')!;
+    expect(trips.stack).toBe('Life');
+    const back = fresh.store.getNote(fresh.store.listNotes({ q: 'colosseum' })[0]!.id);
+    expect(back.tags).toEqual(['travel']);
+    expect(fresh.store.listAttachments(back.id)).toHaveLength(1);
+  });
+});

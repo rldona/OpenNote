@@ -2,6 +2,11 @@ import { parseHTML } from 'linkedom';
 
 const DROP_TAGS = new Set(['script', 'style', 'iframe', 'object', 'embed', 'link', 'meta', 'form']);
 
+/** Parse a complete HTML file (with <html>/<head>/<body>) or a bare fragment. */
+export function parseDocument(html: string) {
+  return /<(html|body)[\s>]/i.test(html) ? parseHTML(html).document : parseFragment(html);
+}
+
 /** Parse an HTML fragment into a document whose body holds the fragment. */
 export function parseFragment(html: string) {
   const { document } = parseHTML(`<!doctype html><html><body>${html}</body></html>`);
@@ -44,4 +49,38 @@ export function sanitizeHtml(html: string): string {
 export function snippet(text: string, max = 160): string {
   const flat = text.replace(/\s+/g, ' ').trim();
   return flat.length > max ? `${flat.slice(0, max)}…` : flat;
+}
+
+export interface TaskItem {
+  idx: number;
+  text: string;
+  checked: boolean;
+  due: string | null;
+}
+
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Checklist items of a note, in document order. `due` is a YYYY-MM-DD day. */
+export function extractTasks(html: string): TaskItem[] {
+  const doc = parseFragment(html);
+  return [...doc.querySelectorAll('li[data-type="taskItem"]')].map((li, idx) => {
+    const due = li.getAttribute('data-due');
+    // Nested task lists would duplicate their text in the parent: only count the item's own paragraph.
+    const own = [...li.children].filter((c) => !c.matches('ul,ol'));
+    const text = own.map((c) => c.textContent ?? '').join(' ').replace(/\s+/g, ' ').trim();
+    return { idx, text, checked: li.getAttribute('data-checked') === 'true', due: due && ISO_DAY.test(due) ? due : null };
+  });
+}
+
+/** Rewrites the idx-th checklist item; returns the new HTML, or null if there is no such item. */
+export function patchTaskItem(html: string, idx: number, patch: { checked?: boolean; due?: string | null }): string | null {
+  const doc = parseFragment(html);
+  const li = doc.querySelectorAll('li[data-type="taskItem"]')[idx];
+  if (!li) return null;
+  if (patch.checked !== undefined) li.setAttribute('data-checked', String(patch.checked));
+  if (patch.due !== undefined) {
+    if (patch.due === null) li.removeAttribute('data-due');
+    else li.setAttribute('data-due', patch.due);
+  }
+  return doc.body.innerHTML;
 }

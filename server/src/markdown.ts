@@ -12,8 +12,12 @@ td.addRule('taskItem', {
 });
 
 /** Attachments are referenced as attachments/<filename> so a folder export stays portable. */
-export function noteToMarkdown(note: Note, attachments: Attachment[] = []): string {
-  const names = new Map(attachments.map((a) => [a.id, a.filename]));
+export function noteToMarkdown(
+  note: Note,
+  attachments: Attachment[] = [],
+  attachmentName: (a: Attachment) => string = (a) => a.filename,
+): string {
+  const names = new Map(attachments.map((a) => [a.id, attachmentName(a)]));
   const html = note.content.replace(/\/api\/attachments\/([0-9a-f-]+)/g, (_, id: string) =>
     encodeURI(`attachments/${names.get(id) ?? id}`),
   );

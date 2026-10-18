@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { exportEnex, importEnex } from './enex.js';
+import { exportZip, importArchive, importFile, looksLikeZip } from './import.js';
 import { noteToMarkdown } from './markdown.js';
 import { sanitizeHtml } from './html.js';
 import { NoteStore, NotFoundError, ValidationError, type NoteInput } from './store.js';
@@ -77,6 +78,13 @@ export function createApp(store: NoteStore): Hono {
     else store.trashNote(c.req.param('id'));
     return c.body(null, 204);
   });
+  app.post('/api/notes/:id/duplicate', (c) => c.json(store.duplicateNote(c.req.param('id')), 201));
+  app.post('/api/notes/merge', async (c) => {
+    const b = await body(c);
+    if (!Array.isArray(b.ids)) throw new ValidationError('ids must be an array');
+    return c.json(store.mergeNotes(b.ids.map(String)));
+  });
+  app.get('/api/notes/:id/backlinks', (c) => c.json(store.backlinks(c.req.param('id'))));
   app.post('/api/notes/:id/restore', (c) => c.json(store.restoreNote(c.req.param('id'))));
   app.delete('/api/trash', (c) => c.json({ deleted: store.emptyTrash() }));
 
@@ -84,6 +92,37 @@ export function createApp(store: NoteStore): Hono {
   app.post('/api/notes/:id/versions/:versionId/restore', (c) =>
     c.json(store.restoreVersion(c.req.param('id'), Number(c.req.param('versionId')))),
   );
+
+  // ---------------------------------------------------------------- templates
+  app.get('/api/templates', (c) => c.json(store.listTemplates()));
+  app.post('/api/templates', async (c) => {
+    const b = await body(c);
+    return c.json(store.saveAsTemplate(String(b.noteId ?? '')), 201);
+  });
+  app.post('/api/templates/:id/use', async (c) => {
+    const b = await body(c).catch(() => ({}));
+    return c.json(store.createFromTemplate(c.req.param('id'), typeof b.notebookId === 'string' ? b.notebookId : undefined), 201);
+  });
+  app.delete('/api/templates/:id', (c) => {
+    store.deleteNotePermanently(c.req.param('id'));
+    return c.body(null, 204);
+  });
+
+  // -------------------------------------------------------------------- tasks
+  app.get('/api/tasks', (c) => {
+    const q = c.req.query();
+    const status = ['open', 'done', 'all'].includes(q.status ?? '') ? (q.status as 'open' | 'done' | 'all') : 'open';
+    const due = ['overdue', 'today', 'week', 'none', 'any'].includes(q.due ?? '') ? (q.due as any) : undefined;
+    return c.json(store.listTasks({ status, due }));
+  });
+  app.patch('/api/tasks/:noteId/:idx', async (c) => {
+    const b = await body(c);
+    const patch: { checked?: boolean; due?: string | null } = {};
+    if (typeof b.checked === 'boolean') patch.checked = b.checked;
+    if (b.due === null || typeof b.due === 'string') patch.due = b.due;
+    store.updateTask(c.req.param('noteId'), Number(c.req.param('idx')), patch);
+    return c.body(null, 204);
+  });
 
   // --------------------------------------------------------------------- tags
   app.get('/api/tags', (c) => c.json(store.listTags()));
@@ -138,6 +177,26 @@ export function createApp(store: NoteStore): Hono {
       if (err instanceof Error && err.message.includes('ENEX')) throw new ValidationError(err.message);
       throw err;
     }
+  });
+  app.post('/api/import/markdown', async (c) => {
+    const bytes = new Uint8Array(await c.req.arrayBuffer());
+    const notebook = c.req.query('notebook') ?? 'Imported';
+    try {
+      const result = looksLikeZip(bytes)
+        ? importArchive(store, bytes, notebook)
+        : importFile(store, c.req.query('filename') ?? 'Imported note.md', new TextDecoder().decode(bytes), notebook);
+      return c.json(result, 201);
+    } catch (err) {
+      if (err instanceof Error && /archive|no Markdown/.test(err.message)) throw new ValidationError(err.message);
+      throw err;
+    }
+  });
+  app.get('/api/export/zip', (c) => {
+    const notebookId = c.req.query('notebook');
+    const notes = store.listNotes({ notebookId, limit: 5000 }).map((n) => store.getNote(n.id));
+    c.header('Content-Type', 'application/zip');
+    c.header('Content-Disposition', 'attachment; filename="opennote-export.zip"');
+    return c.body(exportZip(store, notes) as Uint8Array<ArrayBuffer>);
   });
   app.get('/api/export/enex', (c) => {
     const noteId = c.req.query('note');

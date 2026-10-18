@@ -25,25 +25,26 @@ as long as it respects the target's license.
 | Area | Feature | Status |
 | --- | --- | --- |
 | Organise | Notebooks, stacks | ✅ |
-| | Tags | ✅ |
+| | Tags, hierarchical (`a/b/c`) | ✅ |
 | | Pinned notes ("shortcuts") | ✅ |
 | | Trash, restore, empty trash | ✅ |
 | | Saved searches | ✅ |
 | Edit | Rich text, checklists, tables, code, quotes | ✅ |
 | | Images and file attachments (paste, drop, button) | ✅ |
 | | Note history / versions | ✅ |
-| | Templates | planned |
+| | Templates | ✅ |
+| | Note links, backlinks, duplicate, merge | ✅ |
 | | Web clipper (browser extension) | planned |
-| | Markdown import | planned |
+| | Markdown / HTML / Obsidian-vault import | ✅ |
 | Find | Full-text search (prefix, phrase, accents, ranking) | ✅ |
 | | `tag:` `notebook:` `todo:` `resource:` `reminderTime:` | ✅ |
 | | Search inside attachments (PDF/OCR) | planned |
-| | Date operators (`created:`, `updated:`) | planned |
+| | Date operators, negation, `any:`, `intitle:`, `sourceUrl:` | ✅ |
 | Act | Reminders + notifications | ✅ |
-| | Standalone tasks view | planned |
+| | Tasks view with due dates | ✅ |
 | Move | ENEX import / export | ✅ |
 | | Markdown export (per note) | ✅ |
-| | Folder export with attachments, zip backup | planned |
+| | Zip export (Markdown + attachments) | ✅ |
 | Sync | Optional self-hosted sync | planned |
 | | Desktop shell (Tauri/Electron) | planned |
 | Security | Local-only server, Host/Origin checks, sanitized HTML, sandboxed attachments | ✅ |

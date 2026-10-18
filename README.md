@@ -32,13 +32,21 @@ Back up that folder and you have backed up everything.
 - **Notebooks and stacks**, **tags**, pinned notes, **trash** with restore
 - **Rich editor** (TipTap): headings, bold/italic/underline/strike/highlight, lists, **checklists**,
   quotes, code blocks, **tables**, links, images (paste or drag & drop), file attachments
-- **Search** with an Evernote-style grammar, instant and typo-tolerant on accents:
-  `milk bread`, `"exact phrase"`, `tag:work`, `notebook:Ideas`, `todo:true`, `resource:any`, `reminderTime:*`.
-  Save any search to the sidebar
+- **Hierarchical tags** (`work/projects/alpha`, with a collapsible tree and roll-up counts)
+- **Tasks view**: every checklist item across your notes, with **due dates** (overdue / today / next 7 days),
+  tick them off without opening the note
+- **Templates** (meeting notes, weekly review…, or save any note as one) with `{{date}}` / `{{time}}`
+- **Note links** (`⛓` in the toolbar) with **backlinks**, **duplicate** and **merge** notes (Ctrl/Cmd-click to multi-select)
+- **Search** with an Evernote-style grammar, instant and accent-insensitive:
+  `milk bread`, `"exact phrase"`, `-word`, `any: a b`, `intitle:x`, `tag:work` (includes sub-tags), `-tag:x`,
+  `notebook:Ideas`, `todo:true`, `resource:any`, `reminderTime:*`, `created:month`, `updated:day-1`, `-created:20240101`,
+  `sourceUrl:example.com`. Save any search to the sidebar
 - **Note history**: automatic versions, restore any earlier one
 - **Reminders** with in-app and desktop notifications
 - **Import/export ENEX** (Evernote's documented export format) including tags, dates, checklists and
-  attachments, so you can bring your notes over or leave at any time. Export a note as **Markdown**
+  attachments, so you can bring your notes over or leave at any time
+- **Import Markdown / HTML / zip** (Obsidian vaults and folders become notebooks and stacks, relative images become
+  attachments) and **export everything as a zip** of Markdown files plus attachments; export single notes as Markdown
 - Light/dark theme, English and Spanish UI
 - Loopback-only server: Host and Origin checks protect your notes from other websites
 
@@ -61,7 +69,7 @@ web/src/              React client
 ## Limitations (MVP)
 
 - Single user, single device: there is no sync yet (copy the data folder, or use ENEX)
-- Markdown export is per note and references attachments as `attachments/<name>`; it does not bundle the files
+- Single-note Markdown export references attachments as `attachments/<name>` without bundling them (use the zip export for that)
 - ENEX import loads the file in memory, so very large exports (hundreds of MB) may be slow
 - Evernote-only features that need a server (shared notebooks, Spaces, AI) are out of scope
 

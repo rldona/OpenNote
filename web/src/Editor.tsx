@@ -9,6 +9,20 @@ import { Table, TableCell, TableHeader, TableRow } from '@tiptap/extension-table
 import { api, type Note } from './api';
 import { t } from './i18n';
 
+/** Checklist item that can carry a due date, stored as data-due="YYYY-MM-DD". */
+const DueTaskItem = TaskItem.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      due: {
+        default: null,
+        parseHTML: (el: HTMLElement) => el.getAttribute('data-due'),
+        renderHTML: (attrs: Record<string, unknown>) => (attrs.due ? { 'data-due': attrs.due as string } : {}),
+      },
+    };
+  },
+});
+
 type Patch = { title?: string; content?: string };
 type Status = 'saved' | 'saving' | 'error';
 
@@ -21,6 +35,7 @@ interface Props {
 export function NoteEditor({ note, onSaved }: Props) {
   const [title, setTitle] = useState(note.title);
   const [status, setStatus] = useState<Status>('saved');
+  const [picking, setPicking] = useState(false);
   const pending = useRef<Patch>({});
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const editorRef = useRef<Editor | null>(null);
@@ -76,11 +91,12 @@ export function NoteEditor({ note, onSaved }: Props) {
     editable: !readOnly,
     content: note.content,
     extensions: [
-      StarterKit,
+      // Links are handled below: internal note links navigate, external ones need Ctrl/Cmd+click.
+      StarterKit.configure({ link: { openOnClick: false } }),
       Image,
       Highlight,
       TaskList,
-      TaskItem.configure({ nested: true }),
+      DueTaskItem.configure({ nested: true }),
       Table.configure({ resizable: false }),
       TableRow,
       TableHeader,
@@ -89,6 +105,24 @@ export function NoteEditor({ note, onSaved }: Props) {
     ],
     onUpdate: ({ editor }) => schedule({ content: editor.getHTML() }),
     editorProps: {
+      handleDOMEvents: {
+        click: (_view, event) => {
+          const a = (event.target as HTMLElement).closest('a');
+          const href = a?.getAttribute('href');
+          if (!href) return false;
+          if (href.startsWith('#/note/')) {
+            event.preventDefault();
+            window.location.hash = href.slice(1);
+            return true;
+          }
+          if (/^(https?:|mailto:)/i.test(href) && (event.metaKey || event.ctrlKey)) {
+            event.preventDefault();
+            window.open(href, '_blank', 'noopener,noreferrer');
+            return true;
+          }
+          return false;
+        },
+      },
       handlePaste: (_view, event) => {
         const files = [...(event.clipboardData?.files ?? [])];
         if (!files.length) return false;
@@ -122,14 +156,30 @@ export function NoteEditor({ note, onSaved }: Props) {
           {status === 'saving' ? t('saving') : status === 'error' ? '⚠' : t('saved')}
         </span>
       </div>
-      {!readOnly && editor && <Toolbar editor={editor} onFile={(f) => void insertUpload(f)} />}
+      {!readOnly && editor && <Toolbar editor={editor} onFile={(f) => void insertUpload(f)} onLinkNote={() => setPicking(true)} />}
+      {picking && editor && (
+        <NotePicker
+          exclude={note.id}
+          onClose={() => setPicking(false)}
+          onPick={(n) => {
+            setPicking(false);
+            const href = `#/note/${n.id}`;
+            if (editor.state.selection.empty) {
+              editor.chain().focus().insertContent({ type: 'text', text: n.title || t('untitled'), marks: [{ type: 'link', attrs: { href } }] }).run();
+            } else {
+              editor.chain().focus().extendMarkRange('link').setLink({ href }).run();
+            }
+          }}
+        />
+      )}
       <EditorContent editor={editor} className="editor-body" />
     </div>
   );
 }
 
-function Toolbar({ editor, onFile }: { editor: Editor; onFile: (f: File) => void }) {
+function Toolbar({ editor, onFile, onLinkNote }: { editor: Editor; onFile: (f: File) => void; onLinkNote: () => void }) {
   const fileInput = useRef<HTMLInputElement>(null);
+  const dueInput = useRef<HTMLInputElement>(null);
   const chain = () => editor.chain().focus();
   const btn = (label: string, text: string, run: () => void, active?: boolean) => (
     <button
@@ -159,6 +209,27 @@ function Toolbar({ editor, onFile }: { editor: Editor; onFile: (f: File) => void
       {btn(t('bullets'), '•≡', () => chain().toggleBulletList().run(), editor.isActive('bulletList'))}
       {btn(t('numbers'), '1.', () => chain().toggleOrderedList().run(), editor.isActive('orderedList'))}
       {btn(t('checklist'), '☑', () => chain().toggleTaskList().run(), editor.isActive('taskList'))}
+      {btn(
+        t('dueDate'),
+        '📅',
+        () => {
+          const input = dueInput.current;
+          if (!input || !editor.isActive('taskItem')) return;
+          input.value = (editor.getAttributes('taskItem').due as string | null) ?? '';
+          input.showPicker?.();
+        },
+        !!editor.getAttributes('taskItem').due,
+      )}
+      <input
+        ref={dueInput}
+        type="date"
+        className="due-picker"
+        aria-label={t('dueDate')}
+        tabIndex={-1}
+        onChange={(e) =>
+          chain().updateAttributes('taskItem', { due: e.target.value || null }).run()
+        }
+      />
       {btn(t('quote'), '❝', () => chain().toggleBlockquote().run(), editor.isActive('blockquote'))}
       {btn(t('code'), '</>', () => chain().toggleCodeBlock().run(), editor.isActive('codeBlock'))}
       <span className="sep" />
@@ -176,6 +247,7 @@ function Toolbar({ editor, onFile }: { editor: Editor; onFile: (f: File) => void
         },
         editor.isActive('link'),
       )}
+      {btn(t('linkNote'), '⛓', onLinkNote)}
       {btn(t('attach'), '📎', () => fileInput.current?.click())}
       <input
         ref={fileInput}
@@ -187,6 +259,46 @@ function Toolbar({ editor, onFile }: { editor: Editor; onFile: (f: File) => void
           e.target.value = '';
         }}
       />
+    </div>
+  );
+}
+
+/** Modal to search and pick a note to link to. */
+function NotePicker({ exclude, onPick, onClose }: {
+  exclude: string;
+  onPick: (n: { id: string; title: string }) => void;
+  onClose: () => void;
+}) {
+  const [q, setQ] = useState('');
+  const [results, setResults] = useState<{ id: string; title: string; snippet: string }[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    const id = setTimeout(() => {
+      api.notes({ q }).then((r) => !cancelled && setResults(r.filter((n) => n.id !== exclude).slice(0, 30)));
+    }, 150);
+    return () => {
+      cancelled = true;
+      clearTimeout(id);
+    };
+  }, [q, exclude]);
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" role="dialog" aria-label={t('linkNote')} onClick={(e) => e.stopPropagation()}>
+        <h3>{t('linkNote')}</h3>
+        <input autoFocus type="search" value={q} placeholder={t('searchNotes')} onChange={(e) => setQ(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }} style={{ width: '100%', marginBottom: 8 }} />
+        <ul>
+          {results.map((n) => (
+            <li key={n.id}>
+              <button className="pick" onClick={() => onPick(n)}>
+                <strong>{n.title || t('untitled')}</strong>
+                <small>{n.snippet}</small>
+              </button>
+            </li>
+          ))}
+        </ul>
+        <button onClick={onClose}>{t('close')}</button>
+      </div>
     </div>
   );
 }

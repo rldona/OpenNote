@@ -13,6 +13,7 @@ const port = Number(process.env.PORT ?? 3737);
 const webDist = resolve(fileURLToPath(new URL('../../web/dist', import.meta.url)));
 
 const store = new NoteStore(openDb(join(dataDir, 'opennote.db')), join(dataDir, 'attachments'));
+store.seedTemplates(process.env.LC_ALL || process.env.LANG || 'en');
 const app = createApp(store);
 
 if (existsSync(webDist)) {

@@ -72,6 +72,16 @@ CREATE TABLE IF NOT EXISTS saved_searches (
   query TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS tasks (
+  note_id TEXT NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+  idx INTEGER NOT NULL,
+  text TEXT NOT NULL,
+  checked INTEGER NOT NULL DEFAULT 0,
+  due TEXT,
+  PRIMARY KEY (note_id, idx)
+);
+CREATE INDEX IF NOT EXISTS tasks_due ON tasks(due);
+
 CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
   note_id UNINDEXED,
   title,
@@ -84,5 +94,14 @@ export function openDb(path: string): DatabaseSyncType {
   if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
   const db = new DatabaseSync(path);
   db.exec(SCHEMA);
+  migrate(db);
   return db;
+}
+
+/** Additive migrations for databases created by older versions. */
+function migrate(db: DatabaseSyncType): void {
+  const cols = (db.prepare('PRAGMA table_info(notes)').all() as { name: string }[]).map((c) => c.name);
+  if (!cols.includes('is_template')) {
+    db.exec('ALTER TABLE notes ADD COLUMN is_template INTEGER NOT NULL DEFAULT 0');
+  }
 }
