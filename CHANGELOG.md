@@ -6,6 +6,8 @@ when a `v*` tag is pushed; the section of the tag becomes the release notes.
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-10-18
+
 ### Fixed
 - **macOS: the Dock icon looked much bigger than other apps.** The macOS icon now has the standard margin and a soft shadow
   (`desktop/build/icon-mac.png`); Windows and Linux keep the full-bleed icon.
@@ -47,6 +49,7 @@ First public build.
 - Local-only by design: the server listens on loopback only, with Host/Origin checks, a strict Content-Security-Policy and
   sanitized HTML.
 
-[Unreleased]: https://github.com/rldona/OpenNote/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/rldona/OpenNote/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/rldona/OpenNote/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/rldona/OpenNote/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/rldona/OpenNote/releases/tag/v0.1.0
