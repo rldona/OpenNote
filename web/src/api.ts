@@ -15,12 +15,27 @@ export interface SyncStatus {
 }
 export interface Version { id: number; title: string; savedAt: number }
 
+let serverDown = false;
+/** Lets the UI show a banner when the local server stops answering, and clear it when it is back. */
+function trackConnection(down: boolean) {
+  if (down === serverDown) return;
+  serverDown = down;
+  window.dispatchEvent(new Event(down ? 'opennote:offline' : 'opennote:online'));
+}
+
 async function req<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const res = await fetch(`/api${path}`, {
-    method,
-    headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`/api${path}`, {
+      method,
+      headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  } catch (err) {
+    trackConnection(true);
+    throw err;
+  }
+  trackConnection(false);
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
     throw new Error(err.error ?? res.statusText);

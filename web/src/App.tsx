@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, type Task, type Note, type NoteSummary, type Notebook, type SavedSearch, type TagCount, type Version } from './api';
+import { Home } from './Home';
 import { NoteEditor } from './Editor';
 import { SyncPanel } from './SyncPanel';
 import { locale, t } from './i18n';
@@ -42,6 +43,7 @@ export function App() {
   const [backlinks, setBacklinks] = useState<{ id: string; title: string }[]>([]);
   const [toast, setToast] = useState<string | null>(null);
   const [showSync, setShowSync] = useState(false);
+  const [serverDown, setServerDown] = useState(false);
   const [history, setHistory] = useState<Version[] | null>(null);
   const importInput = useRef<HTMLInputElement>(null);
   const importFilesInput = useRef<HTMLInputElement>(null);
@@ -119,11 +121,28 @@ export function App() {
     return () => clearInterval(id);
   }, []);
 
+  // The local server may stop (or not be started yet): show a banner instead of a silently empty app.
+  useEffect(() => {
+    const down = () => setServerDown(true);
+    const up = () => {
+      setServerDown(false);
+      void refreshList();
+      void refreshMeta();
+    };
+    window.addEventListener('opennote:offline', down);
+    window.addEventListener('opennote:online', up);
+    return () => {
+      window.removeEventListener('opennote:offline', down);
+      window.removeEventListener('opennote:online', up);
+    };
+  }, [refreshList, refreshMeta]);
+
   // Internal links look like #/note/<id>.
   useEffect(() => {
     const go = () => {
       const m = /^#\/note\/([\w-]+)$/.exec(window.location.hash);
       if (m) setSelectedId(m[1]!);
+      else if (window.location.hash === '#/tasks') setView({ kind: 'tasks' });
     };
     go();
     window.addEventListener('hashchange', go);
@@ -232,6 +251,12 @@ export function App() {
 
   return (
     <div className="app">
+      {serverDown && (
+        <div className="offline-banner" role="alert">
+          {t('serverDown')}
+          <button onClick={() => { void refreshList(); void refreshMeta(); }}>{t('retry')}</button>
+        </div>
+      )}
       <aside className="sidebar">
         <div className="brand">OpenNote</div>
         <button className="primary new-note" onClick={() => void createNote()}>＋ {t('newNote')}</button>
@@ -449,7 +474,20 @@ export function App() {
 
       <main className="editor-pane">
         {!note ? (
-          <div className="placeholder">{t('selectNote')}</div>
+          view.kind === 'all' && !debouncedQuery ? (
+            <Home
+              refreshToken={notes}
+              onOpen={(id) => select(id)}
+              onOpenTasks={() => setView({ kind: 'tasks' })}
+              onCreate={async (title) => {
+                const created = await api.createNote({ title, notebookId: undefined });
+                await Promise.all([refreshList(), refreshMeta()]);
+                select(created.id);
+              }}
+            />
+          ) : (
+            <div className="placeholder">{t('selectNote')}</div>
+          )
         ) : (
           <>
             <NoteMeta

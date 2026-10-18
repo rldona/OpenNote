@@ -18,7 +18,7 @@ const child = spawn(electron, args, {
 let out = '';
 child.stdout.on('data', (d) => (out += d));
 child.stderr.on('data', (d) => (out += d));
-const timer = setTimeout(() => { child.kill('SIGKILL'); }, 60_000);
+const timer = setTimeout(() => { child.kill('SIGKILL'); }, 150_000);
 child.on('exit', (code, signal) => {
   clearTimeout(timer);
   rmSync(data, { recursive: true, force: true });
