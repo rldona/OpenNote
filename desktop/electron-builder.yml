@@ -28,7 +28,7 @@ mac:
   hardenedRuntime: false
   extendInfo:
     NSMicrophoneUsageDescription: OpenNote uses the microphone only when you record an audio note.
-  icon: build/icon.png
+  icon: build/icon-mac.png # artwork at 80% with a shadow: the size macOS expects in the Dock
   target:
     - target: dmg
       arch: [arm64, x64]

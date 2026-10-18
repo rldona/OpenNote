@@ -6,6 +6,10 @@ when a `v*` tag is pushed; the section of the tag becomes the release notes.
 
 ## [Unreleased]
 
+### Fixed
+- **macOS: the Dock icon looked much bigger than other apps.** The macOS icon now has the standard margin and a soft shadow
+  (`desktop/build/icon-mac.png`); Windows and Linux keep the full-bleed icon.
+
 ## [0.1.1] - 2026-10-18
 
 ### Fixed
