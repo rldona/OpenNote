@@ -41,6 +41,8 @@ as long as it respects the target's license.
 | | Search inside attachments (PDF/OCR) | planned |
 | | Date operators, negation, `any:`, `intitle:`, `sourceUrl:` | ✅ |
 | Act | Reminders + notifications | ✅ |
+| | Home dashboard (tasks due, reminders, pinned, recent) | ✅ |
+| | Installable PWA | ✅ |
 | | Tasks view with due dates | ✅ |
 | Move | ENEX import / export | ✅ |
 | | Markdown export (per note) | ✅ |
@@ -48,4 +50,5 @@ as long as it respects the target's license.
 | Sync | Serverless folder sync, conflict copies, optional encryption | ✅ |
 | | Desktop app: macOS .dmg, Windows .exe, Linux .deb (Electron) | ✅ |
 | Security | Local-only server, Host/Origin checks, sanitized HTML, sandboxed attachments | ✅ |
-| | Encryption at rest / encrypted notes | planned |
+| | Password-protected notes (AES-256-GCM, client side) | ✅ |
+| | Whole-database encryption at rest | planned (use disk encryption) |

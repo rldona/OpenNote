@@ -3,6 +3,8 @@ import { api, type Task, type Note, type NoteSummary, type Notebook, type SavedS
 import { Home } from './Home';
 import { NoteEditor } from './Editor';
 import { SyncPanel } from './SyncPanel';
+import { LockedNote } from './Locked';
+import { isEncryptedHtml, type NoteCipher } from './crypto';
 import { locale, t } from './i18n';
 
 type View =
@@ -44,6 +46,9 @@ export function App() {
   const [toast, setToast] = useState<string | null>(null);
   const [showSync, setShowSync] = useState(false);
   const [serverDown, setServerDown] = useState(false);
+  /** An encrypted note that was unlocked in this window: its plaintext and key live only here. */
+  const [unlocked, setUnlocked] = useState<{ id: string; html: string; cipher: NoteCipher } | null>(null);
+  useEffect(() => setUnlocked(null), [selectedId]);
   const [history, setHistory] = useState<Version[] | null>(null);
   const importInput = useRef<HTMLInputElement>(null);
   const importFilesInput = useRef<HTMLInputElement>(null);
@@ -515,7 +520,13 @@ export function App() {
               backlinks={backlinks}
               onOpenNote={(id) => { window.location.hash = `/note/${id}`; }}
             />
-            <NoteEditor key={`${note.id}:${rev}`} note={note} onSaved={onSaved} />
+            {isEncryptedHtml(note.content) && unlocked?.id !== note.id ? (
+              <LockedNote content={note.content} onUnlock={(html, cipher) => setUnlocked({ id: note.id, html, cipher })} />
+            ) : unlocked?.id === note.id ? (
+              <NoteEditor key={`${note.id}:${rev}:unlocked`} note={{ ...note, content: unlocked.html }} onSaved={onSaved} initialCipher={unlocked.cipher} />
+            ) : (
+              <NoteEditor key={`${note.id}:${rev}`} note={note} onSaved={onSaved} />
+            )}
           </>
         )}
       </main>

@@ -47,6 +47,9 @@ Back up that folder and you have backed up everything.
   `milk bread`, `"exact phrase"`, `-word`, `any: a b`, `intitle:x`, `tag:work` (includes sub-tags), `-tag:x`,
   `notebook:Ideas`, `todo:true`, `resource:any`, `reminderTime:*`, `created:month`, `updated:day-1`, `-created:20240101`,
   `sourceUrl:example.com`. Save any search to the sidebar
+- **Encrypted notes**: lock any note with a passphrase (AES-256-GCM in the browser; the server, the database, backups and
+  the sync folder only ever see ciphertext). Titles, tags and attachments are not encrypted; a lost passphrase cannot be recovered
+- **Home** dashboard, installable **PWA**, and a clear banner when the local server is not running
 - **Note history**: automatic versions, restore any earlier one
 - **Reminders** with in-app and desktop notifications
 - **Import/export ENEX** (Evernote's documented export format) including tags, dates, checklists and

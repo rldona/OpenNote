@@ -7,6 +7,8 @@ import Highlight from '@tiptap/extension-highlight';
 import { TaskItem, TaskList } from '@tiptap/extension-list';
 import { Table, TableCell, TableHeader, TableRow } from '@tiptap/extension-table';
 import { api, type Note } from './api';
+import { lockNote, type NoteCipher } from './crypto';
+import { PassphraseDialog } from './Locked';
 import { t } from './i18n';
 
 /** Checklist item that can carry a due date, stored as data-due="YYYY-MM-DD". */
@@ -29,13 +31,18 @@ type Status = 'saved' | 'saving' | 'error';
 interface Props {
   note: Note;
   onSaved: (note: Note) => void;
+  /** Set when the note was just unlocked: edits are re-encrypted with this key before saving. */
+  initialCipher?: NoteCipher | null;
 }
 
 /** Rich text editor with debounced autosave. Remounted per note via `key`. */
-export function NoteEditor({ note, onSaved }: Props) {
+export function NoteEditor({ note, onSaved, initialCipher = null }: Props) {
   const [title, setTitle] = useState(note.title);
   const [status, setStatus] = useState<Status>('saved');
   const [picking, setPicking] = useState(false);
+  const [askPass, setAskPass] = useState(false);
+  const [cipher, setCipher] = useState<NoteCipher | null>(initialCipher);
+  const cipherRef = useRef<NoteCipher | null>(initialCipher);
   const pending = useRef<Patch>({});
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const editorRef = useRef<Editor | null>(null);
@@ -47,7 +54,9 @@ export function NoteEditor({ note, onSaved }: Props) {
     if (!Object.keys(patch).length) return;
     pending.current = {};
     try {
-      const saved = await api.updateNote(note.id, patch);
+      // Encrypted notes: the plaintext never leaves this window.
+      const body = patch.content !== undefined && cipherRef.current ? { ...patch, content: await cipherRef.current.encrypt(patch.content) } : patch;
+      const saved = await api.updateNote(note.id, body);
       setStatus('saved');
       onSaved(saved);
     } catch {
@@ -85,6 +94,30 @@ export function NoteEditor({ note, onSaved }: Props) {
         .focus()
         .insertContent({ type: 'text', text: file.name, marks: [{ type: 'link', attrs: { href: up.url } }] })
         .run();
+  };
+
+  const lock = async (passphrase: string) => {
+    const ed = editorRef.current;
+    if (!ed) return;
+    clearTimeout(timer.current);
+    delete pending.current.content; // anything still waiting would be saved in the clear
+    const { envelope, cipher: c } = await lockNote(ed.getHTML(), passphrase);
+    await api.updateNote(note.id, { content: envelope });
+    cipherRef.current = c;
+    setCipher(c);
+    setAskPass(false);
+    setStatus('saved');
+  };
+
+  const removeLock = async () => {
+    const ed = editorRef.current;
+    if (!ed) return;
+    clearTimeout(timer.current);
+    delete pending.current.content;
+    await api.updateNote(note.id, { content: ed.getHTML() });
+    cipherRef.current = null;
+    setCipher(null);
+    setStatus('saved');
   };
 
   const editor = useEditor({
@@ -156,7 +189,9 @@ export function NoteEditor({ note, onSaved }: Props) {
           {status === 'saving' ? t('saving') : status === 'error' ? '⚠' : t('saved')}
         </span>
       </div>
-      {!readOnly && editor && <Toolbar editor={editor} onFile={(f) => void insertUpload(f)} onLinkNote={() => setPicking(true)} />}
+      {!readOnly && editor && <Toolbar editor={editor} onFile={(f) => void insertUpload(f)} onLinkNote={() => setPicking(true)} locked={!!cipher} onToggleLock={() => (cipher ? void removeLock() : setAskPass(true))} />}
+      {cipher && <div className="lock-banner" role="status">🔒 {t('lockedBanner')}</div>}
+      {askPass && <PassphraseDialog onConfirm={lock} onClose={() => setAskPass(false)} />}
       {picking && editor && (
         <NotePicker
           exclude={note.id}
@@ -177,7 +212,13 @@ export function NoteEditor({ note, onSaved }: Props) {
   );
 }
 
-function Toolbar({ editor, onFile, onLinkNote }: { editor: Editor; onFile: (f: File) => void; onLinkNote: () => void }) {
+function Toolbar({ editor, onFile, onLinkNote, locked, onToggleLock }: {
+  editor: Editor;
+  onFile: (f: File) => void;
+  onLinkNote: () => void;
+  locked: boolean;
+  onToggleLock: () => void;
+}) {
   const fileInput = useRef<HTMLInputElement>(null);
   const dueInput = useRef<HTMLInputElement>(null);
   const chain = () => editor.chain().focus();
@@ -248,6 +289,7 @@ function Toolbar({ editor, onFile, onLinkNote }: { editor: Editor; onFile: (f: F
         editor.isActive('link'),
       )}
       {btn(t('linkNote'), '⛓', onLinkNote)}
+      {btn(locked ? t('removeLock') : t('lockNote'), locked ? '🔓' : '🔒', onToggleLock, locked)}
       {btn(t('attach'), '📎', () => fileInput.current?.click())}
       <input
         ref={fileInput}

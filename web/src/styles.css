@@ -256,3 +256,16 @@ button.primary {
 .home small.overdue { color: var(--danger); }
 .offline-banner { position: fixed; top: 0; left: 0; right: 0; z-index: 30; background: var(--danger); color: #fff; padding: 8px 14px; display: flex; gap: 12px; align-items: center; justify-content: center; }
 .offline-banner button { background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.5); color: #fff; border-radius: 6px; padding: 2px 12px; }
+
+/* encrypted notes */
+.locked { margin: auto; text-align: center; display: flex; flex-direction: column; gap: 10px; align-items: center; max-width: 360px; padding: 24px; }
+.locked .lock-icon { font-size: 44px; }
+.locked h2 { margin: 0; }
+.locked input { width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
+.locked button { width: 100%; padding: 7px; border-radius: 8px; border: 0; }
+.lock-banner { margin: 0 20px; padding: 4px 10px; font-size: 12px; background: var(--bg-active); border-radius: 6px; color: var(--muted); }
+.modal .field { display: flex; flex-direction: column; gap: 2px; margin: 8px 0; font-size: 13px; }
+.modal .field input { padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); }
+.modal .row { display: flex; gap: 8px; margin-top: 12px; }
+.modal .row button { border: 1px solid var(--border); border-radius: 6px; background: none; padding: 4px 12px; }
+.modal .row button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
