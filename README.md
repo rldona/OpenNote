@@ -9,6 +9,12 @@ No account, no cloud, no telemetry.
 > It contains no Evernote code, assets or branding. See [docs/FEATURES.md](docs/FEATURES.md)
 > for how the feature set was defined.
 
+## Desktop app
+
+Installers for **macOS (.dmg)**, **Windows (.exe)** and **Linux (.deb)** are built by GitHub Actions and attached to each release; see
+[desktop/README.md](desktop/README.md) (they are unsigned, so the first launch shows a system warning that file explains how to bypass).
+They add a tray icon, a global **quick note** shortcut and native reminders, and use the same `~/.opennote` data.
+
 ## Quick start
 
 Requires Node.js 24+ (uses the built-in `node:sqlite` with FTS5).
@@ -70,6 +76,7 @@ server/src/app.ts     HTTP API and local-only protections
 server/src/sync.ts    serverless folder sync
 server/src/clip.ts    web clipper endpoint
 extension/            browser extension (TypeScript)
+desktop/              Electron app (TypeScript)
 web/src/              React client
 ```
 

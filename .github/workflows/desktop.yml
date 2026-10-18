@@ -1,0 +1,111 @@
+name: Desktop
+
+# The ONLY way installers are produced: GitHub Actions builds the OpenNote desktop app on macOS (.dmg), Windows (.exe)
+# and Linux (.deb), after running the tests on each of those systems.
+#   - every push / PR: build + smoke test, installers kept as workflow artifacts
+#   - push a tag like v0.2.0: the version is taken from the tag and the installers are published as a GitHub Release
+#     (git tag v0.2.0 && git push origin v0.2.0)
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    paths: ['desktop/**', 'server/**', 'web/**', 'package*.json', '.github/workflows/desktop.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: macOS (.dmg), os: macos-latest, builder: '--mac dmg' }
+          - { name: Windows (.exe), os: windows-latest, builder: '--win nsis' }
+          - { name: Linux (.deb), os: ubuntu-latest, builder: '--linux deb' }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version --allow-same-version -w desktop
+
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+      # npm does not run Electron's install script by default: fetch the binary used by the smoke test.
+      - name: Download Electron binary
+        run: node node_modules/electron/install.js
+
+      - name: Bundle desktop app
+        run: npm run bundle -w desktop
+
+      - name: Smoke test (source)
+        if: runner.os != 'Linux'
+        run: npm run smoke -w desktop
+      - name: Smoke test (source, under xvfb)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgtk-3-0 libnss3 libgbm1 libasound2t64 libxss1 libxtst6 libatspi2.0-0 libnotify4 libsecret-1-0
+          xvfb-run -a npm run smoke -w desktop
+
+      - name: Build installer
+        working-directory: desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false' # unsigned builds, see README
+        run: npx electron-builder ${{ matrix.builder }} --publish never
+
+      - name: Smoke test the installed .deb
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get install -y ./desktop/release/*amd64.deb
+          export OPENNOTE_SMOKE=1 OPENNOTE_DATA="$(mktemp -d)"
+          xvfb-run -a opennote --no-sandbox --disable-gpu 2>&1 | tee smoke.log
+          grep -q 'SMOKE OK' smoke.log
+
+      - name: Smoke test the packaged app (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          export OPENNOTE_SMOKE=1 OPENNOTE_DATA="$(mktemp -d)"
+          app=$(ls -d desktop/release/mac*/OpenNote.app | head -1)
+          "$app/Contents/MacOS/OpenNote" 2>&1 | tee smoke.log
+          grep -q 'SMOKE OK' smoke.log
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenNote-${{ runner.os }}
+          path: |
+            desktop/release/*.dmg
+            desktop/release/*.exe
+            desktop/release/*.deb
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true

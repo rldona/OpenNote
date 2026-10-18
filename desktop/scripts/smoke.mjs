@@ -5,12 +5,13 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 
 const electron = createRequire(import.meta.url)('electron');
 const data = mkdtempSync(join(tmpdir(), 'opennote-smoke-'));
 const args = ['.', ...(process.platform === 'linux' ? ['--no-sandbox', '--disable-gpu'] : [])];
 const child = spawn(electron, args, {
-  cwd: new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'),
+  cwd: fileURLToPath(new URL('..', import.meta.url)),
   env: { ...process.env, OPENNOTE_SMOKE: '1', OPENNOTE_DATA: data },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
