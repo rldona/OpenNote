@@ -582,3 +582,62 @@ describe('tag cleanup', () => {
     expect(store.listTags().map((t) => t.name)).toEqual(['shared']);
   });
 });
+
+describe('attachment serving: ranges and previews', () => {
+  const bytes = new Uint8Array(Array.from({ length: 100 }, (_, i) => i));
+  const make = (mime: string) => {
+    const { app, store } = setup();
+    const n = store.createNote({ title: 'm' });
+    const att = store.addAttachment(n.id, { filename: 'f', mime, data: bytes });
+    return { app, store, n, url: `/api/attachments/${att.id}` };
+  };
+  const get = (app: ReturnType<typeof createApp>, url: string, range?: string) =>
+    app.request(url, { headers: range ? { ...H, range } : H });
+
+  it('serves byte ranges so audio and video can seek', async () => {
+    const { app, url } = make('audio/webm');
+    const full = await get(app, url);
+    expect(full.status).toBe(200);
+    expect(full.headers.get('accept-ranges')).toBe('bytes');
+
+    const part = await get(app, url, 'bytes=10-19');
+    expect(part.status).toBe(206);
+    expect(part.headers.get('content-range')).toBe('bytes 10-19/100');
+    expect([...new Uint8Array(await part.arrayBuffer())]).toEqual([10, 11, 12, 13, 14, 15, 16, 17, 18, 19]);
+
+    const open = await get(app, url, 'bytes=95-');
+    expect([...new Uint8Array(await open.arrayBuffer())]).toEqual([95, 96, 97, 98, 99]);
+    const suffix = await get(app, url, 'bytes=-3');
+    expect(suffix.headers.get('content-range')).toBe('bytes 97-99/100');
+    const clamped = await get(app, url, 'bytes=90-500');
+    expect(clamped.headers.get('content-range')).toBe('bytes 90-99/100');
+    expect((await get(app, url, 'bytes=200-300')).status).toBe(416);
+    expect((await get(app, url, 'bytes=5-2')).status).toBe(416);
+    expect((await get(app, url, 'bytes=0-1,5-6')).status).toBe(200); // multi-range: full body
+  });
+
+  it('shows PDFs inline without the sandbox, but still sandboxes HTML and SVG', async () => {
+    const p = make('application/pdf');
+    const pdf = await get(p.app, p.url);
+    expect(pdf.headers.get('content-type')).toBe('application/pdf');
+    expect(pdf.headers.get('content-disposition')).toMatch(/^inline/);
+    expect(pdf.headers.get('content-security-policy')).toBeNull();
+    expect(pdf.headers.get('x-content-type-options')).toBe('nosniff');
+
+    for (const mime of ['text/html', 'image/svg+xml', 'application/xhtml+xml']) {
+      const { app, url } = make(mime);
+      const res = await get(app, url);
+      expect(res.headers.get('content-security-policy'), mime).toMatch(/sandbox/);
+      expect(res.headers.get('content-disposition'), mime).toMatch(/^attachment/);
+    }
+  });
+
+  it('exports audio attachments to ENEX and Markdown', async () => {
+    const { app, store, n, url } = make('audio/webm');
+    store.updateNote(n.id, { content: `<p>memo</p><audio controls src="${url}"></audio>` });
+    const enex = await (await app.request(`/api/export/enex?note=${n.id}`, { headers: H })).text();
+    expect(enex).toMatch(/<en-media type="audio\/webm" hash="[0-9a-f]{32}"\/>/);
+    const md = await (await app.request(`/api/notes/${n.id}/export.md`, { headers: H })).text();
+    expect(md).toContain('[🎙 Audio](attachments/f)');
+  });
+});

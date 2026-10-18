@@ -38,6 +38,7 @@ Back up that folder and you have backed up everything.
 - **Notebooks and stacks**, **tags**, pinned notes, **trash** with restore
 - **Rich editor** (TipTap): headings, bold/italic/underline/strike/highlight, lists, **checklists**,
   quotes, code blocks, **tables**, links, images (paste or drag & drop), file attachments
+- **Voice notes** (record in the editor), **hand drawing**, and **previews** of images, PDFs, audio, video and text files
 - **Hierarchical tags** (`work/projects/alpha`, with a collapsible tree and roll-up counts)
 - **Tasks view**: every checklist item across your notes, with **due dates** (overdue / today / next 7 days),
   tick them off without opening the note

@@ -32,6 +32,8 @@ as long as it respects the target's license.
 | Edit | Rich text, checklists, tables, code, quotes | ✅ |
 | | Images and file attachments (paste, drop, button) | ✅ |
 | | Note history / versions | ✅ |
+| | Audio notes (record in the editor), hand drawing | ✅ |
+| | Attachment preview (images, PDF, audio, video, text) | ✅ |
 | | Templates | ✅ |
 | | Note links, backlinks, duplicate, merge | ✅ |
 | | Web clipper (Chrome/Edge/Firefox extension) | ✅ |

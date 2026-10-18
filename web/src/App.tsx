@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, type Task, type Note, type NoteSummary, type Notebook, type SavedSearch, type TagCount, type Version } from './api';
+import { AttachmentsPanel } from './Attachments';
 import { Home } from './Home';
 import { NoteEditor } from './Editor';
 import { SyncPanel } from './SyncPanel';
@@ -527,6 +528,7 @@ export function App() {
             ) : (
               <NoteEditor key={`${note.id}:${rev}`} note={note} onSaved={onSaved} />
             )}
+            <AttachmentsPanel noteId={note.id} refreshKey={note.updatedAt} readOnly={note.trashedAt !== null} />
           </>
         )}
       </main>

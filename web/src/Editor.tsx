@@ -9,6 +9,9 @@ import { Table, TableCell, TableHeader, TableRow } from '@tiptap/extension-table
 import { api, type Note } from './api';
 import { lockNote, type NoteCipher } from './crypto';
 import { PassphraseDialog } from './Locked';
+import { Audio } from './AudioNode';
+import { useRecorder } from './Recorder';
+import { Sketch } from './Sketch';
 import { t } from './i18n';
 
 /** Checklist item that can carry a due date, stored as data-due="YYYY-MM-DD". */
@@ -41,6 +44,7 @@ export function NoteEditor({ note, onSaved, initialCipher = null }: Props) {
   const [status, setStatus] = useState<Status>('saved');
   const [picking, setPicking] = useState(false);
   const [askPass, setAskPass] = useState(false);
+  const [sketching, setSketching] = useState(false);
   const [cipher, setCipher] = useState<NoteCipher | null>(initialCipher);
   const cipherRef = useRef<NoteCipher | null>(initialCipher);
   const pending = useRef<Patch>({});
@@ -89,6 +93,7 @@ export function NoteEditor({ note, onSaved, initialCipher = null }: Props) {
     if (!ed) return;
     const up = await api.upload(note.id, file);
     if (file.type.startsWith('image/')) ed.chain().focus().setImage({ src: up.url, alt: file.name }).run();
+    else if (file.type.startsWith('audio/')) ed.chain().focus().insertContent({ type: 'audio', attrs: { src: up.url } }).run();
     else
       ed.chain()
         .focus()
@@ -120,6 +125,8 @@ export function NoteEditor({ note, onSaved, initialCipher = null }: Props) {
     setStatus('saved');
   };
 
+  const recorder = useRecorder((file) => void insertUpload(file));
+
   const editor = useEditor({
     editable: !readOnly,
     content: note.content,
@@ -127,6 +134,7 @@ export function NoteEditor({ note, onSaved, initialCipher = null }: Props) {
       // Links are handled below: internal note links navigate, external ones need Ctrl/Cmd+click.
       StarterKit.configure({ link: { openOnClick: false } }),
       Image,
+      Audio,
       Highlight,
       TaskList,
       DueTaskItem.configure({ nested: true }),
@@ -189,8 +197,18 @@ export function NoteEditor({ note, onSaved, initialCipher = null }: Props) {
           {status === 'saving' ? t('saving') : status === 'error' ? '⚠' : t('saved')}
         </span>
       </div>
-      {!readOnly && editor && <Toolbar editor={editor} onFile={(f) => void insertUpload(f)} onLinkNote={() => setPicking(true)} locked={!!cipher} onToggleLock={() => (cipher ? void removeLock() : setAskPass(true))} />}
+      {!readOnly && editor && <Toolbar editor={editor} onFile={(f) => void insertUpload(f)} onLinkNote={() => setPicking(true)} recorder={recorder} onSketch={() => setSketching(true)} locked={!!cipher} onToggleLock={() => (cipher ? void removeLock() : setAskPass(true))} />}
       {cipher && <div className="lock-banner" role="status">🔒 {t('lockedBanner')}</div>}
+      {recorder.error && <div className="lock-banner error" role="alert">🎙 {recorder.error}</div>}
+      {sketching && (
+        <Sketch
+          onClose={() => setSketching(false)}
+          onDone={(png) => {
+            setSketching(false);
+            void insertUpload(new File([png], `drawing-${Date.now()}.png`, { type: 'image/png' }));
+          }}
+        />
+      )}
       {askPass && <PassphraseDialog onConfirm={lock} onClose={() => setAskPass(false)} />}
       {picking && editor && (
         <NotePicker
@@ -212,12 +230,14 @@ export function NoteEditor({ note, onSaved, initialCipher = null }: Props) {
   );
 }
 
-function Toolbar({ editor, onFile, onLinkNote, locked, onToggleLock }: {
+function Toolbar({ editor, onFile, onLinkNote, locked, onToggleLock, recorder, onSketch }: {
   editor: Editor;
   onFile: (f: File) => void;
   onLinkNote: () => void;
   locked: boolean;
   onToggleLock: () => void;
+  recorder: ReturnType<typeof useRecorder>;
+  onSketch: () => void;
 }) {
   const fileInput = useRef<HTMLInputElement>(null);
   const dueInput = useRef<HTMLInputElement>(null);
@@ -290,6 +310,13 @@ function Toolbar({ editor, onFile, onLinkNote, locked, onToggleLock }: {
       )}
       {btn(t('linkNote'), '⛓', onLinkNote)}
       {btn(locked ? t('removeLock') : t('lockNote'), locked ? '🔓' : '🔒', onToggleLock, locked)}
+      {btn(
+        recorder.recording ? t('stopRecording') : t('record'),
+        recorder.recording ? `⏹ ${Math.floor(recorder.seconds / 60)}:${String(recorder.seconds % 60).padStart(2, '0')}` : '🎙',
+        () => (recorder.recording ? recorder.stop() : void recorder.start()),
+        recorder.recording,
+      )}
+      {btn(t('sketch'), '✏️', onSketch)}
       {btn(t('attach'), '📎', () => fileInput.current?.click())}
       <input
         ref={fileInput}

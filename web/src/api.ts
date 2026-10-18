@@ -78,6 +78,8 @@ export const api = {
     req<SyncConfig>('PUT', '/sync/config', patch),
   syncStatus: () => req<SyncStatus>('GET', '/sync/status'),
   syncNow: () => req<SyncStatus>('POST', '/sync/run'),
+  attachments: (noteId: string) => req<{ id: string; filename: string; mime: string; size: number }[]>('GET', `/notes/${noteId}/attachments`),
+  deleteAttachment: (id: string) => req<void>('DELETE', `/attachments/${id}`),
   tasks: (status: 'open' | 'done') => req<Task[]>('GET', `/tasks?status=${status}`),
   updateTask: (noteId: string, idx: number, patch: { checked?: boolean; due?: string | null }) =>
     req<void>('PATCH', `/tasks/${noteId}/${idx}`, patch),

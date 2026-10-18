@@ -140,9 +140,9 @@ export function htmlToEnml(html: string, attachments: Attachment[]): string {
         .join('');
     }
 
-    const attId = attachmentIdFromUrl(el.getAttribute(tag === 'img' ? 'src' : 'href'));
+    const attId = attachmentIdFromUrl(el.getAttribute(tag === 'a' ? 'href' : 'src'));
     const att = attId ? byId.get(attId) : undefined;
-    if ((tag === 'img' || tag === 'a') && att) {
+    if ((tag === 'img' || tag === 'a' || tag === 'audio' || tag === 'video') && att) {
       return `<en-media type="${escapeXml(att.mime)}" hash="${att.md5}"/>`;
     }
     if (tag === 'img' && !/^https?:/i.test(el.getAttribute('src') ?? '')) return '';

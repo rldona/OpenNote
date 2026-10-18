@@ -11,6 +11,14 @@ td.addRule('taskItem', {
   },
 });
 
+td.addRule('mediaAttachment', {
+  filter: ['audio', 'video'],
+  replacement: (_content, node) => {
+    const src = (node as Element).getAttribute('src');
+    return src ? `\n\n[${node.nodeName === 'AUDIO' ? '🎙 Audio' : '🎬 Video'}](${src})\n\n` : '';
+  },
+});
+
 /** Attachments are referenced as attachments/<filename> so a folder export stays portable. */
 export function noteToMarkdown(
   note: Note,

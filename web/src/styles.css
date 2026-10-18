@@ -269,3 +269,32 @@ button.primary {
 .modal .row { display: flex; gap: 8px; margin-top: 12px; }
 .modal .row button { border: 1px solid var(--border); border-radius: 6px; background: none; padding: 4px 12px; }
 .modal .row button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+
+/* audio, sketch, attachments */
+.ProseMirror audio { display: block; width: min(420px, 100%); margin: .6em 0; }
+.toolbar button[aria-pressed='true'] { background: var(--bg-active); border-color: var(--accent); }
+.modal.sketch { width: min(1000px, 96vw); max-height: 94vh; }
+.sketch-tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
+.sketch-tools button { border: 1px solid var(--border); border-radius: 6px; background: none; padding: 3px 10px; min-height: 28px; }
+.sketch-tools button.active { border-color: var(--accent); background: var(--bg-active); }
+.sketch-tools .swatch { width: 28px; padding: 0; border-radius: 50%; }
+.sketch-tools .swatch.active { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sketch-tools .dot { display: inline-block; border-radius: 50%; background: currentColor; }
+.sketch-canvas { width: 100%; height: auto; background: #fff; border: 1px solid var(--border); border-radius: 6px; touch-action: none; cursor: crosshair; display: block; }
+.attachments { border-top: 1px solid var(--border); padding: 4px 20px; font-size: 13px; }
+.att-toggle { background: none; border: 0; padding: 2px 0; color: var(--muted); }
+.attachments ul { list-style: none; margin: 4px 0; padding: 0; max-height: 140px; overflow-y: auto; }
+.attachments li { display: flex; gap: 8px; align-items: center; padding: 2px 0; }
+.att-name { background: none; border: 0; padding: 0; text-align: left; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fg); text-decoration: underline; text-decoration-color: var(--border); }
+.attachments a { color: var(--accent); }
+.att-del { background: none; border: 0; color: var(--muted); }
+.modal.preview { width: min(960px, 96vw); max-height: 94vh; display: flex; flex-direction: column; }
+.preview-head { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+.preview-head strong { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.preview-head button { border: 1px solid var(--border); border-radius: 6px; background: none; padding: 3px 10px; }
+.preview-body { overflow: auto; min-height: 0; flex: 1; }
+.preview-body img { max-width: 100%; height: auto; display: block; margin: auto; }
+.preview-body iframe { width: 100%; height: 70vh; border: 0; background: #fff; }
+.preview-body video { max-width: 100%; max-height: 70vh; }
+.preview-body pre { white-space: pre-wrap; word-break: break-word; margin: 0; font-size: 12px; }
+.lock-banner.error { background: transparent; color: var(--danger); }

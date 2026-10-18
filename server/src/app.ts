@@ -164,14 +164,29 @@ export function createApp(store: NoteStore, sync?: SyncEngine, clipOptions?: Cli
   app.get('/api/attachments/:id', (c) => {
     const att = store.getAttachment(c.req.param('id'));
     const inline = INLINE_MIME.test(att.mime);
-    // User files are untrusted: never let them run script in our origin.
-    c.header('Content-Security-Policy', "sandbox; default-src 'none'; style-src 'unsafe-inline'");
+    // User files are untrusted: HTML, SVG and the like never run script in our origin. PDFs are the exception, so
+    // the browser's built-in viewer can show them; they are served with their exact type and nosniff.
+    if (att.mime !== 'application/pdf') c.header('Content-Security-Policy', "sandbox; default-src 'none'; style-src 'unsafe-inline'");
     c.header('Content-Type', inline ? att.mime : 'application/octet-stream');
-    c.header(
-      'Content-Disposition',
-      `${inline ? 'inline' : 'attachment'}; filename="${safeFilename(att.filename)}"`,
-    );
+    c.header('Content-Disposition', `${inline ? 'inline' : 'attachment'}; filename="${safeFilename(att.filename)}"`);
     c.header('Cache-Control', 'private, max-age=31536000, immutable');
+    c.header('Accept-Ranges', 'bytes');
+
+    // Byte ranges let audio and video players seek.
+    const range = /^bytes=(\d*)-(\d*)$/.exec(c.req.header('range') ?? '');
+    if (range && (range[1] || range[2])) {
+      const size = att.data.length;
+      let start = range[1] ? Number(range[1]) : size - Math.min(Number(range[2]), size);
+      let end = range[1] && range[2] ? Math.min(Number(range[2]), size - 1) : size - 1;
+      if (start >= size || start > end) {
+        c.header('Content-Range', `bytes */${size}`);
+        return c.body(null, 416);
+      }
+      start = Math.max(0, start);
+      end = Math.max(start, end);
+      c.header('Content-Range', `bytes ${start}-${end}/${size}`);
+      return c.body(new Uint8Array(att.data.subarray(start, end + 1)), 206);
+    }
     return c.body(new Uint8Array(att.data));
   });
   app.delete('/api/attachments/:id', (c) => {
