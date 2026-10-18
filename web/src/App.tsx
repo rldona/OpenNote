@@ -6,6 +6,7 @@ import { NoteEditor } from './Editor';
 import { SyncPanel } from './SyncPanel';
 import { LockedNote } from './Locked';
 import { Icon, type IconName } from './Icon';
+import { PromptHost, askText } from './Prompt';
 import { NotebooksOverview } from './Notebooks';
 import { ACCENTS, usePrefs, type Accent, type SortKey, type Theme } from './prefs';
 import { isEncryptedHtml, type NoteCipher } from './crypto';
@@ -259,7 +260,7 @@ export function App() {
   }, [notes, view.kind]);
 
   const askNewNotebook = async () => {
-    const name = window.prompt(t('notebookName'));
+    const name = await askText(t('notebookName'));
     if (name?.trim()) { await api.createNotebook(name); void refreshMeta(); }
   };
 
@@ -294,7 +295,7 @@ export function App() {
         title={t('rename')}
         aria-label={`${t('rename')} ${nb.name}`}
         onClick={async () => {
-          const name = window.prompt(t('notebookName'), nb.name);
+          const name = await askText(t('notebookName'), nb.name);
           if (name?.trim()) { await api.updateNotebook(nb.id, { name }); void refreshMeta(); }
         }}
       ><Icon name="pencil" size={13} /></button>
@@ -406,7 +407,7 @@ export function App() {
               title={t('saveSearch')}
               aria-label={t('saveSearch')}
               onClick={async () => {
-                const name = window.prompt(t('searchName'), query.trim());
+                const name = await askText(t('searchName'), query.trim());
                 if (name?.trim()) { await api.saveSearch(name, query); void refreshMeta(); }
               }}
             ><Icon name="star" size={16} /></button>
@@ -687,6 +688,8 @@ export function App() {
           onSynced={() => void Promise.all([refreshList(), refreshMeta()])}
         />
       )}
+
+      <PromptHost />
 
       {toast && (
         <div className="toast" role="status" onClick={() => setToast(null)}>{toast}</div>

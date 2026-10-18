@@ -7,6 +7,7 @@ import Highlight from '@tiptap/extension-highlight';
 import { TaskItem, TaskList } from '@tiptap/extension-list';
 import { Table, TableCell, TableHeader, TableRow } from '@tiptap/extension-table';
 import { Icon } from './Icon';
+import { askText } from './Prompt';
 import { api, type Note } from './api';
 import { lockNote, type NoteCipher } from './crypto';
 import { PassphraseDialog } from './Locked';
@@ -300,9 +301,9 @@ function Toolbar({ editor, onFile, onLinkNote, locked, onToggleLock, recorder, o
       {btn(
         t('link'),
         <Icon name="link" size={16} />,
-        () => {
+        async () => {
           const prev = editor.getAttributes('link').href as string | undefined;
-          const url = window.prompt(t('linkPrompt'), prev ?? 'https://');
+          const url = await askText(t('linkPrompt'), prev ?? 'https://');
           if (url === null) return;
           if (url === '') chain().unsetLink().run();
           else chain().extendMarkRange('link').setLink({ href: url }).run();

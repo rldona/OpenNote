@@ -6,6 +6,13 @@ when a `v*` tag is pushed; the section of the tag becomes the release notes.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-19
+
+### Fixed
+- **Desktop app: the + button for a new notebook did nothing.** Electron does not support `window.prompt`, so every question
+  that asked for text silently returned nothing. They now use an in-app window (new notebook, rename notebook, save search,
+  insert link).
+
 ## [0.3.0] - 2026-10-18
 
 ### Changed
@@ -79,7 +86,8 @@ First public build.
 - Local-only by design: the server listens on loopback only, with Host/Origin checks, a strict Content-Security-Policy and
   sanitized HTML.
 
-[Unreleased]: https://github.com/rldona/OpenNote/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/rldona/OpenNote/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/rldona/OpenNote/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/rldona/OpenNote/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/rldona/OpenNote/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/rldona/OpenNote/compare/v0.1.1...v0.1.2
