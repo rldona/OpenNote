@@ -14,6 +14,11 @@ jobs:
         with:
           node-version: 24
           cache: npm
+      - name: Lockfile only references the public npm registry
+        run: |
+          if grep -E '"resolved": "https?://' package-lock.json | grep -v 'registry.npmjs.org'; then
+            echo "package-lock.json points at a private registry; regenerate it with --registry=https://registry.npmjs.org/"; exit 1
+          fi
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
