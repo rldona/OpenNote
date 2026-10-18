@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="popup.css" />
+    <title>OpenNote Web Clipper</title>
+  </head>
+  <body>
+    <main>
+      <h1>Clip to OpenNote</h1>
+      <p id="offline" hidden role="alert"></p>
+      <form id="form">
+        <fieldset id="modes">
+          <legend>What to save</legend>
+          <label><input type="radio" name="mode" value="article" checked /> Article</label>
+          <label><input type="radio" name="mode" value="page" /> Full page</label>
+          <label><input type="radio" name="mode" value="selection" /> Selection</label>
+          <label><input type="radio" name="mode" value="bookmark" /> Bookmark</label>
+          <label><input type="radio" name="mode" value="screenshot" /> Screenshot</label>
+        </fieldset>
+        <label>Title <input id="title" type="text" autocomplete="off" /></label>
+        <label>Notebook <select id="notebook"></select></label>
+        <label>Tags <input id="tags" type="text" placeholder="comma separated, use / to nest" autocomplete="off" /></label>
+        <button id="save" type="submit">Save to OpenNote</button>
+      </form>
+      <p id="status" role="status" aria-live="polite"></p>
+      <details>
+        <summary>Settings</summary>
+        <label>OpenNote address <input id="server" type="url" placeholder="http://localhost:3737" /></label>
+        <small>Only localhost addresses are allowed.</small>
+      </details>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

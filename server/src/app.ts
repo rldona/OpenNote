@@ -1,11 +1,14 @@
 import { Hono } from 'hono';
 import { exportEnex, importEnex } from './enex.js';
+import { clipPage, type ClipOptions } from './clip.js';
 import { exportZip, importArchive, importFile, looksLikeZip } from './import.js';
 import { noteToMarkdown } from './markdown.js';
 import { sanitizeHtml } from './html.js';
 import { NoteStore, NotFoundError, ValidationError, type NoteInput } from './store.js';
 import { SyncEngine, SyncError } from './sync.js';
 
+/** Browser extensions may call the clip endpoint (and only it); web pages cannot forge this Origin. */
+const EXTENSION_ORIGIN = /^(chrome|moz|safari-web)-extension:\/\/[\w.-]+$/;
 const LOCAL_HOST = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
 const INLINE_MIME = /^(image\/(png|jpe?g|gif|webp|avif|bmp)|application\/pdf|audio\/|video\/)/;
 
@@ -13,7 +16,7 @@ function safeFilename(name: string): string {
   return name.replace(/[^\w.\- ]+/g, '_').slice(0, 120) || 'file';
 }
 
-export function createApp(store: NoteStore, sync?: SyncEngine): Hono {
+export function createApp(store: NoteStore, sync?: SyncEngine, clipOptions?: ClipOptions): Hono {
   const app = new Hono();
 
   // The API controls local files, so only accept requests addressed to this machine
@@ -22,7 +25,14 @@ export function createApp(store: NoteStore, sync?: SyncEngine): Hono {
     const host = c.req.header('host') ?? '';
     if (!LOCAL_HOST.test(host)) return c.text('forbidden host', 403);
     const origin = c.req.header('origin');
-    if (origin && c.req.method !== 'GET' && c.req.method !== 'HEAD') {
+    const clipFromExtension = c.req.path === '/api/clip' && !!origin && EXTENSION_ORIGIN.test(origin);
+    if (clipFromExtension) {
+      c.header('Access-Control-Allow-Origin', origin!);
+      c.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
+      c.header('Access-Control-Allow-Headers', 'Content-Type');
+      c.header('Vary', 'Origin');
+      if (c.req.method === 'OPTIONS') return c.body(null, 204);
+    } else if (origin && c.req.method !== 'GET' && c.req.method !== 'HEAD') {
       if (new URL(origin).host !== host) return c.text('forbidden origin', 403);
     }
     await next();
@@ -167,6 +177,22 @@ export function createApp(store: NoteStore, sync?: SyncEngine): Hono {
   app.delete('/api/attachments/:id', (c) => {
     store.deleteAttachment(c.req.param('id'));
     return c.body(null, 204);
+  });
+
+  // --------------------------------------------------------------- web clipper
+  app.post('/api/clip', async (c) => {
+    const b = await body(c);
+    const note = await clipPage(store, {
+      title: typeof b.title === 'string' ? b.title : undefined,
+      url: typeof b.url === 'string' ? b.url : undefined,
+      html: typeof b.html === 'string' ? b.html : undefined,
+      notebookId: typeof b.notebookId === 'string' ? b.notebookId : undefined,
+      notebook: typeof b.notebook === 'string' ? b.notebook : undefined,
+      tags: Array.isArray(b.tags) ? b.tags.map(String) : undefined,
+      screenshot: typeof b.screenshot === 'string' ? b.screenshot : undefined,
+      images: b.images === false ? false : true,
+    }, clipOptions);
+    return c.json({ id: note.id, title: note.title }, 201);
   });
 
   // --------------------------------------------------------------------- sync

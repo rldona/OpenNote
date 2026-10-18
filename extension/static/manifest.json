@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "OpenNote Web Clipper",
+  "version": "0.1.0",
+  "description": "Save articles, pages, selections, bookmarks and screenshots to your local OpenNote.",
+  "permissions": ["activeTab", "scripting", "contextMenus", "storage"],
+  "host_permissions": ["http://localhost/*", "http://127.0.0.1/*"],
+  "action": { "default_title": "Clip to OpenNote", "default_popup": "popup.html" },
+  "background": { "service_worker": "background.js" },
+  "commands": {
+    "_execute_action": { "suggested_key": { "default": "Ctrl+Shift+E", "mac": "Command+Shift+E" } }
+  }
+}

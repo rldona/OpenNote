@@ -547,6 +547,12 @@ function NoteMeta({ note, notebooks, onPatch, onTrash, onRestore, onDelete, onHi
         {notebooks.map((nb) => <option key={nb.id} value={nb.id}>{nb.name}</option>)}
       </select>
 
+      {note.sourceUrl && /^https?:\/\//i.test(note.sourceUrl) && (
+        <a className="source-link" href={note.sourceUrl} target="_blank" rel="noopener noreferrer" title={note.sourceUrl}>
+          🔗 {new URL(note.sourceUrl).hostname}
+        </a>
+      )}
+
       <div className="tags">
         {note.tags.map((tag) => (
           <span className="chip" key={tag}>

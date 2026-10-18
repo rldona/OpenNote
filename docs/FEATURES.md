@@ -34,7 +34,7 @@ as long as it respects the target's license.
 | | Note history / versions | ✅ |
 | | Templates | ✅ |
 | | Note links, backlinks, duplicate, merge | ✅ |
-| | Web clipper (browser extension) | planned |
+| | Web clipper (Chrome/Edge/Firefox extension) | ✅ |
 | | Markdown / HTML / Obsidian-vault import | ✅ |
 | Find | Full-text search (prefix, phrase, accents, ranking) | ✅ |
 | | `tag:` `notebook:` `todo:` `resource:` `reminderTime:` | ✅ |

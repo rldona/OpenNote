@@ -47,6 +47,8 @@ Back up that folder and you have backed up everything.
   attachments, so you can bring your notes over or leave at any time
 - **Import Markdown / HTML / zip** (Obsidian vaults and folders become notebooks and stacks, relative images become
   attachments) and **export everything as a zip** of Markdown files plus attachments; export single notes as Markdown
+- **Web clipper** (Chrome, Edge, Firefox): save articles, pages, selections, bookmarks and screenshots, with images
+  downloaded into the note — see [extension/README.md](extension/README.md)
 - **Sync between devices without any cloud**: through a folder you choose (Syncthing, iCloud Drive, Dropbox, USB…),
   with conflict copies instead of data loss and optional AES-256 encryption — see [docs/SYNC.md](docs/SYNC.md)
 - Light/dark theme, English and Spanish UI
@@ -65,6 +67,9 @@ Back up that folder and you have backed up everything.
 server/src/store.ts   notes, notebooks, tags, versions, search
 server/src/enex.ts    ENEX <-> HTML conversion (ENML, en-todo, en-media)
 server/src/app.ts     HTTP API and local-only protections
+server/src/sync.ts    serverless folder sync
+server/src/clip.ts    web clipper endpoint
+extension/            browser extension (TypeScript)
 web/src/              React client
 ```
 

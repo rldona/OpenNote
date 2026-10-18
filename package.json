@@ -5,8 +5,14 @@
   "description": "Local-first, open source note taking app inspired by the Evernote feature set.",
   "license": "MIT",
   "type": "module",
-  "workspaces": ["server", "web"],
-  "engines": { "node": ">=24" },
+  "workspaces": [
+    "server",
+    "web",
+    "extension"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "dev": "npm-run-all --parallel dev:server dev:web",
     "dev:server": "npm run dev -w server",
@@ -14,7 +20,8 @@
     "build": "npm run build -w web",
     "start": "npm run build && npm run start -w server",
     "test": "npm run test -w server",
-    "typecheck": "npm run typecheck -w server && npm run typecheck -w web"
+    "typecheck": "npm run typecheck -w server && npm run typecheck -w web && npm run typecheck -w extension",
+    "build:extension": "npm run build -w extension"
   },
   "devDependencies": {
     "npm-run-all2": "^7.0.2"
