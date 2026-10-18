@@ -6,6 +6,20 @@ when a `v*` tag is pushed; the section of the tag becomes the release notes.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-18
+
+### Changed
+- **macOS: the title bar and the app are now one block.** The window no longer has a separate title bar colour: the window
+  buttons sit on the sidebar and you can drag the window by the top of the sidebar and the headers. (Windows and Linux keep
+  their native title bar.)
+
+### Added
+- **Updates from inside the app.** OpenNote looks for a new release once a day (and you can turn that off in Settings). When there
+  is one, a window asks whether to **Update** or **Cancel**. Update downloads the installer for your system, checks its SHA-256
+  and installs it: on macOS the app replaces itself and reopens, on Windows the installer runs silently and reopens the app, on
+  Linux the `.deb` opens in your package installer. Your notes are never touched.
+- **Check for updates…** in the app menu (Help menu on Windows and Linux), in the tray menu and in Settings.
+
 ## [0.2.0] - 2026-10-18
 
 ### Changed
@@ -65,7 +79,8 @@ First public build.
 - Local-only by design: the server listens on loopback only, with Host/Origin checks, a strict Content-Security-Policy and
   sanitized HTML.
 
-[Unreleased]: https://github.com/rldona/OpenNote/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/rldona/OpenNote/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/rldona/OpenNote/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/rldona/OpenNote/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/rldona/OpenNote/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/rldona/OpenNote/compare/v0.1.0...v0.1.1

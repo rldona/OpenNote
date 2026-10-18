@@ -29,6 +29,9 @@
 <div class="row"><input id="shortcut" spellcheck="false"><button id="saveShortcut" class="primary">Apply</button></div>
 <small>Examples: CommandOrControl+Alt+N, Control+Shift+Space. Some Linux desktops (Wayland) do not allow global shortcuts.</small>
 <div id="msg" role="status"></div>
+<label>Updates</label>
+<div><label style="font-weight:400;margin:0"><input id="auto" type="checkbox" style="width:auto"> Check for updates automatically (once a day)</label></div>
+<div><button id="checkNow">Check for updates now</button> <small id="updateMsg"></small></div>
 <label>About</label>
 <div><small id="about"></small></div>
 <div><button id="close">Close</button></div>
@@ -40,6 +43,8 @@
     $('dir').textContent = s.dataDir;
     $('shortcut').value = s.quickNoteShortcut;
     $('about').textContent = 'OpenNote ' + s.version + ' · Electron ' + s.electron + ' · ' + s.platform + ' · notes stay on this computer';
+    $('auto').checked = s.autoUpdateCheck;
+    if (!s.canUpdate) $('updateMsg').textContent = 'Development build: updates only apply to installed apps.';
     if (!s.shortcutRegistered) say('The quick note shortcut could not be registered. Pick another one.', true);
   })();
   $('saveShortcut').onclick = async () => {
@@ -47,6 +52,14 @@
     r.ok ? say('Shortcut applied') : say(r.error || 'Invalid shortcut', true);
   };
   $('chooseDir').onclick = async () => { await window.opennote.chooseDataDir(); };
+  $('auto').onchange = () => window.opennote.setAutoUpdate($('auto').checked);
+  $('checkNow').onclick = async () => {
+    $('checkNow').disabled = true;
+    $('updateMsg').textContent = 'Checking…';
+    const r = await window.opennote.checkUpdates();
+    $('updateMsg').textContent = r.status === 'uptodate' ? 'You have the latest version.' : r.status === 'available' ? 'Version ' + r.version + ' is available.' : 'Could not check: ' + (r.message || '');
+    $('checkNow').disabled = false;
+  };
   $('close').onclick = () => window.opennote.closeSettings();
 </script>
 </body>

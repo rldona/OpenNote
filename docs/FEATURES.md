@@ -52,6 +52,7 @@ as long as it respects the target's license.
 | | Zip export (Markdown + attachments) | ✅ |
 | Sync | Serverless folder sync, conflict copies, optional encryption | ✅ |
 | | Desktop app: macOS .dmg, Windows .exe, Linux .deb (Electron) | ✅ |
+| | In-app updates (daily check, manual check, Update / Cancel prompt) | ✅ (Windows and Linux paths untested outside CI) |
 | Security | Local-only server, Host/Origin checks, sanitized HTML, sandboxed attachments | ✅ |
 | | Password-protected notes (AES-256-GCM, client side) | ✅ |
 | | Whole-database encryption at rest | planned (use disk encryption) |

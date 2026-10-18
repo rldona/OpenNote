@@ -7,5 +7,7 @@ contextBridge.exposeInMainWorld('opennote', {
   getSettings: () => ipcRenderer.invoke('settings:get') as Promise<unknown>,
   setShortcut: (accelerator: string) => ipcRenderer.invoke('settings:shortcut', accelerator) as Promise<{ ok: boolean; error?: string }>,
   chooseDataDir: () => ipcRenderer.invoke('settings:dataDir') as Promise<{ changed: boolean }>,
+  setAutoUpdate: (on: boolean) => ipcRenderer.invoke('settings:autoUpdate', on) as Promise<void>,
+  checkUpdates: () => ipcRenderer.invoke('update:check') as Promise<{ status: 'uptodate' | 'available' | 'error'; version?: string; message?: string }>,
   closeSettings: () => ipcRenderer.invoke('settings:close') as Promise<void>,
 });

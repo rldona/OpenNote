@@ -3,13 +3,17 @@
  * web UI in a window. Notes never leave the computer.
  */
 import {
-  BrowserWindow, Menu, Tray, app, dialog, globalShortcut, ipcMain, nativeImage, session, shell,
+  BrowserWindow, Menu, Tray, app, dialog, globalShortcut, ipcMain, nativeImage, nativeTheme, session, shell,
   type IpcMainInvokeEvent, type MenuItemConstructorOptions,
 } from 'electron';
-import { readFileSync } from 'node:fs';
+import { accessSync, chmodSync, constants, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { startServer, type RunningServer } from '../../server/src/start.js';
+import {
+  bundlePath, checkForUpdate, downloadAsset, isTransientLocation, launchMacSwap, launchWindowsInstaller, macSwapScript, pickAsset, stageMacApp,
+  type CheckResult, type Release,
+} from './updater.js';
 import { DEFAULT_SHORTCUT, loadSettings, resolveDataDir, saveSettings, visibleBounds, type Settings } from './settings.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -26,6 +30,12 @@ const es = {
   openFolder: 'Abrir carpeta de notas', show: 'Mostrar OpenNote', imported: 'Importadas {n} notas', importFailed: 'No se pudo importar',
   chooseFolder: 'Elige la carpeta de notas', restarting: 'OpenNote se reiniciará para usar la nueva carpeta.',
   restartNeeded: 'La variable OPENNOTE_DATA manda sobre este ajuste; cámbiala o quítala.', quit: 'Salir',
+  checkUpdates: 'Buscar actualizaciones…', updateAvailable: 'Hay una nueva versión de OpenNote: {version}',
+  updateDetail: 'Tienes la versión {current}. Tus notas no se tocan.', updateNow: 'Actualizar', cancel: 'Cancelar',
+  upToDate: 'OpenNote está al día', upToDateDetail: 'Tienes la última versión ({current}).', updateCheckFailed: 'No se pudo buscar actualizaciones',
+  updateFailed: 'No se pudo actualizar', openReleasePage: 'Abrir la página de descarga', close: 'Cerrar',
+  downloading: 'Descargando actualización… {n}%', dmgOpened: 'He abierto el instalador. Arrastra OpenNote a Aplicaciones para terminar.',
+  debOpened: 'He abierto el instalador de paquetes. Sigue sus pasos para terminar.',
 } as const;
 const en: Record<keyof typeof es, string> = {
   file: 'File', newNote: 'New note', quickNote: 'Quick note', search: 'Search', importEnex: 'Import ENEX…',
@@ -33,6 +43,12 @@ const en: Record<keyof typeof es, string> = {
   openFolder: 'Open notes folder', show: 'Show OpenNote', imported: 'Imported {n} notes', importFailed: 'Import failed',
   chooseFolder: 'Choose the notes folder', restarting: 'OpenNote will restart to use the new folder.',
   restartNeeded: 'The OPENNOTE_DATA environment variable overrides this setting; change or remove it.', quit: 'Quit',
+  checkUpdates: 'Check for updates…', updateAvailable: 'A new version of OpenNote is available: {version}',
+  updateDetail: 'You have version {current}. Your notes are not touched.', updateNow: 'Update', cancel: 'Cancel',
+  upToDate: 'OpenNote is up to date', upToDateDetail: 'You have the latest version ({current}).', updateCheckFailed: 'Could not check for updates',
+  updateFailed: 'Could not update', openReleasePage: 'Open the download page', close: 'Close',
+  downloading: 'Downloading update… {n}%', dmgOpened: 'I opened the installer. Drag OpenNote to Applications to finish.',
+  debOpened: 'I opened the package installer. Follow its steps to finish.',
 };
 const tr = (key: keyof typeof es, vars: Record<string, string | number> = {}) =>
   (app.getLocale().toLowerCase().startsWith('es') ? es : en)[key].replace(/\{(\w+)\}/g, (_, k: string) => String(vars[k] ?? ''));
@@ -47,6 +63,9 @@ let settingsWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let quitting = false;
 let shortcutRegistered = false;
+let updating = false;
+/** Set once the user chose to update: runs after the app has closed its database and is about to exit. */
+let pendingInstall: (() => void) | null = null;
 
 const webDist = () => (app.isPackaged ? join(process.resourcesPath, 'web') : resolve(here, '../../web/dist'));
 const appIcon = () => nativeImage.createFromPath(join(here, 'icon.png'));
@@ -90,9 +109,22 @@ function createMainWindow(): BrowserWindow {
     show: false,
     title: 'OpenNote',
     icon: appIcon(),
-    backgroundColor: '#161a18',
+    // Same colour as the sidebar, so nothing flashes before the page paints.
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#111413' : '#f6f7f5',
+    // macOS: no separate title bar. The page draws under it and the window buttons sit on the sidebar, like one block.
+    ...(isMac ? { titleBarStyle: 'hidden' as const, trafficLightPosition: { x: 18, y: 18 } } : {}),
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, spellcheck: true },
   });
+  if (isMac) {
+    // The page adapts its top spacing and drag areas to this class (see "desktop-mac" in web/src/styles.css).
+    const mark = (fullscreen: boolean) =>
+      void win.webContents
+        .executeJavaScript(`document.documentElement.classList.add('desktop-mac');document.documentElement.classList.toggle('desktop-fs',${fullscreen})`)
+        .catch(() => undefined);
+    win.webContents.on('did-finish-load', () => mark(win.isFullScreen()));
+    win.on('enter-full-screen', () => mark(true));
+    win.on('leave-full-screen', () => mark(false));
+  }
   if (state.maximized) win.maximize();
   win.once('ready-to-show', () => win.show());
   lockNavigation(win, (url) => new URL(url).origin === origin());
@@ -154,7 +186,7 @@ function openQuickNote(): void {
 function openSettings(): void {
   if (settingsWindow && !settingsWindow.isDestroyed()) return void settingsWindow.focus();
   settingsWindow = auxiliaryWindow('settings.html', {
-    width: 520, height: 470, title: 'OpenNote', minimizable: false, maximizable: false, fullscreenable: false, parent: mainWindow ?? undefined,
+    width: 520, height: 600, title: 'OpenNote', minimizable: false, maximizable: false, fullscreenable: false, parent: mainWindow ?? undefined,
   });
   settingsWindow.on('closed', () => {
     settingsWindow = null;
@@ -206,7 +238,19 @@ function setupIpc(): void {
       version: app.getVersion(),
       electron: process.versions.electron,
       platform: process.platform,
+      autoUpdateCheck: settings.autoUpdateCheck !== false,
+      canUpdate: app.isPackaged,
     };
+  });
+  ipcMain.handle('settings:autoUpdate', (event, on: unknown) => {
+    if (!fromWindow(event, settingsWindow) || typeof on !== 'boolean') throw new Error('not allowed');
+    settings.autoUpdateCheck = on;
+    saveSettings(settings);
+  });
+  ipcMain.handle('update:check', async (event) => {
+    if (!fromWindow(event, settingsWindow)) throw new Error('not allowed');
+    const r = await checkUpdates(true);
+    return r.status === 'available' ? { status: r.status, version: r.release.version } : r.status === 'error' ? { status: r.status, message: r.message } : { status: r.status };
   });
   ipcMain.handle('settings:shortcut', (event, accelerator: unknown) => {
     if (!fromWindow(event, settingsWindow) || typeof accelerator !== 'string' || !accelerator || accelerator.length > 60) {
@@ -244,6 +288,124 @@ function setupIpc(): void {
   ipcMain.handle('settings:close', (event) => {
     if (fromWindow(event, settingsWindow)) settingsWindow?.close();
   });
+}
+
+// ---------------------------------------------------------------- updates
+
+const DAY = 24 * 60 * 60 * 1000;
+const dialogParent = () => BrowserWindow.getFocusedWindow() ?? mainWindow ?? undefined;
+const showBox = (options: Electron.MessageBoxOptions) => {
+  const parent = dialogParent();
+  return parent ? dialog.showMessageBox(parent, options) : dialog.showMessageBox(options);
+};
+
+/** Asks, in a modal window, whether to update now. Two buttons: update or cancel. */
+async function offerUpdate(current: string, release: Release): Promise<void> {
+  const notes = release.notes.trim().slice(0, 700);
+  const { response } = await showBox({
+    type: 'info',
+    title: 'OpenNote',
+    message: tr('updateAvailable', { version: release.version }),
+    detail: `${tr('updateDetail', { current })}${notes ? `\n\n${notes}` : ''}`,
+    buttons: [tr('updateNow'), tr('cancel')],
+    defaultId: 0,
+    cancelId: 1,
+    noLink: true,
+  });
+  if (response === 0) await installUpdate(release);
+}
+
+async function updateFailed(release: Release, err: unknown): Promise<void> {
+  const { response } = await showBox({
+    type: 'error',
+    title: 'OpenNote',
+    message: tr('updateFailed'),
+    detail: err instanceof Error ? err.message : String(err),
+    buttons: [tr('openReleasePage'), tr('close')],
+    defaultId: 0,
+    cancelId: 1,
+  });
+  if (response === 0) openExternal(release.pageUrl);
+}
+
+async function installUpdate(release: Release): Promise<void> {
+  const asset = pickAsset(release, process.platform, process.arch);
+  if (!asset || !app.isPackaged) return openExternal(release.pageUrl);
+  if (updating) return;
+  updating = true;
+  const win = mainWindow;
+  const title = win?.getTitle() ?? 'OpenNote';
+  try {
+    const dir = join(app.getPath('temp'), 'opennote-update');
+    rmSync(dir, { recursive: true, force: true });
+    const file = await downloadAsset(asset, dir, (f) => {
+      win?.setProgressBar(f);
+      win?.setTitle(`OpenNote — ${tr('downloading', { n: Math.round(f * 100) })}`);
+    });
+    win?.setProgressBar(-1);
+    win?.setTitle(title);
+
+    if (process.platform === 'darwin') {
+      const bundle = bundlePath(app.getPath('exe'));
+      let writable = false;
+      try {
+        if (bundle) {
+          accessSync(dirname(bundle), constants.W_OK);
+          accessSync(bundle, constants.W_OK);
+          writable = true;
+        }
+      } catch {
+        writable = false;
+      }
+      if (!bundle || !writable || isTransientLocation(bundle)) {
+        // Cannot replace ourselves here (read-only location, or running from the disk image): hand over to the user.
+        await shell.openPath(file);
+        await showBox({ type: 'info', title: 'OpenNote', message: tr('dmgOpened'), buttons: [tr('close')] });
+        return;
+      }
+      const staged = await stageMacApp(file, dir);
+      const script = join(dir, 'swap.sh');
+      writeFileSync(script, macSwapScript);
+      chmodSync(script, 0o755);
+      pendingInstall = () => launchMacSwap(script, process.pid, bundle, staged);
+      app.quit();
+    } else if (process.platform === 'win32') {
+      pendingInstall = () => launchWindowsInstaller(file);
+      app.quit();
+    } else {
+      await shell.openPath(file);
+      await showBox({ type: 'info', title: 'OpenNote', message: tr('debOpened'), buttons: [tr('close')] });
+    }
+  } catch (err) {
+    win?.setProgressBar(-1);
+    win?.setTitle(title);
+    pendingInstall = null;
+    await updateFailed(release, err);
+  } finally {
+    updating = false;
+  }
+}
+
+/** Looks for a newer release. `manual` also reports "up to date" and errors; the automatic check stays silent. */
+async function checkUpdates(manual: boolean): Promise<CheckResult> {
+  const result = await checkForUpdate(app.getVersion());
+  settings.lastUpdateCheck = Date.now();
+  saveSettings(settings);
+  if (result.status === 'available') {
+    await offerUpdate(result.current, result.release);
+  } else if (manual && result.status === 'uptodate') {
+    await showBox({ type: 'info', title: 'OpenNote', message: tr('upToDate'), detail: tr('upToDateDetail', { current: result.current }), buttons: [tr('close')] });
+  } else if (manual && result.status === 'error') {
+    await showBox({ type: 'warning', title: 'OpenNote', message: tr('updateCheckFailed'), detail: result.message, buttons: [tr('close')] });
+  }
+  return result;
+}
+
+/** Once a day at most, a little after start-up, unless the user turned it off. */
+function scheduleUpdateCheck(): void {
+  if (!app.isPackaged || SMOKE || settings.autoUpdateCheck === false) return;
+  if (Date.now() - (settings.lastUpdateCheck ?? 0) < DAY) return;
+  setTimeout(() => void checkUpdates(false), 20_000);
 }
 
 // ------------------------------------------------------------------- menu
@@ -286,13 +448,14 @@ function buildMenu(): void {
     showMainWindow();
     void runInMain("document.querySelector('.search input')?.focus()");
   };
+  const updatesItem: MenuItemConstructorOptions = { label: tr('checkUpdates'), click: () => void checkUpdates(true) };
   const settingsItem: MenuItemConstructorOptions = { label: tr('settings'), accelerator: 'CmdOrCtrl+,', click: openSettings };
   const template: MenuItemConstructorOptions[] = [
     ...(isMac
       ? [{
           label: app.name,
           submenu: [
-            { role: 'about' }, { type: 'separator' }, settingsItem, { type: 'separator' },
+            { role: 'about' }, updatesItem, { type: 'separator' }, settingsItem, { type: 'separator' },
             { role: 'services' }, { type: 'separator' }, { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' },
             { type: 'separator' }, { role: 'quit' },
           ],
@@ -327,7 +490,9 @@ function buildMenu(): void {
       submenu: [
         { label: tr('github'), click: () => openExternal(REPO_URL) },
         { label: tr('openFolder'), click: () => void shell.openPath(server.dataDir) },
-        ...(isMac ? [] : [{ type: 'separator' } as const, { role: 'about' } as const]),
+        { type: 'separator' },
+        ...(isMac ? [] : [{ role: 'about' } as const]),
+        ...(isMac ? [] : [updatesItem]),
       ],
     },
   ];
@@ -343,6 +508,7 @@ function buildTray(): void {
       { label: tr('show'), click: showMainWindow },
       { label: tr('quickNote'), click: openQuickNote },
       { label: tr('settings'), click: openSettings },
+      { label: tr('checkUpdates'), click: () => void checkUpdates(true) },
       { type: 'separator' },
       { label: tr('quit'), click: () => app.quit() },
     ]),
@@ -404,6 +570,7 @@ async function boot(): Promise<void> {
   shortcutRegistered = registered.ok;
   if (!registered.ok) console.warn(`Quick note shortcut not registered: ${registered.error}`);
   if (SMOKE) void smokeTest();
+  scheduleUpdateCheck();
 }
 
 app.setAppUserModelId('app.opennote.desktop');
@@ -418,7 +585,11 @@ if (!app.requestSingleInstanceLock()) {
   app.on('window-all-closed', () => {
     if (!isMac && !quickWindow && !settingsWindow) app.quit();
   });
-  app.on('will-quit', () => globalShortcut.unregisterAll());
+  app.on('will-quit', () => {
+    globalShortcut.unregisterAll();
+    // The database is closed by now, so the installer can replace the files.
+    pendingInstall?.();
+  });
   app.on('before-quit', (event) => {
     if (quitting || !server) return;
     // Close the database cleanly first: on Windows SQLite keeps its files locked until then.

@@ -50,6 +50,14 @@ ever signed: the build deliberately ignores any certificate in your keychain.
 - *Import ENEX / Markdown / HTML / zip* from the File menu, *Open notes folder* from Help
 - *Settings*: shows and changes the notes folder (default `~/.opennote`, the same one the command line version uses)
 
+- **Updates**: once a day (switch it off in *Settings*) and on demand from *Check for updates…* in the app, tray and
+  Settings, OpenNote reads the latest GitHub Release. If there is a newer one, a window offers **Update** or **Cancel**.
+  The installer for your system is downloaded from this repository's releases only and verified against the SHA-256 GitHub
+  publishes for it. macOS: the app is staged, its signature checked, then swapped in place after quitting (the old copy is
+  restored if anything fails); if the app sits somewhere it cannot replace itself (read-only folder, or run from the disk
+  image) the dmg is opened instead. Windows: the installer runs silently and reopens OpenNote. Linux: the `.deb` opens in
+  your package installer. Notes live outside the app, so an update never touches them
+
 On macOS closing the window keeps OpenNote in the menu bar; on Windows and Linux closing the last window quits.
 
 ## Security

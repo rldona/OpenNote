@@ -15,6 +15,9 @@ export interface Settings {
   /** Where notes live. Defaults to ~/.opennote, the same folder the command line version uses. */
   dataDir?: string;
   quickNoteShortcut: string;
+  /** Look for a new release once a day. On unless set to false. */
+  autoUpdateCheck?: boolean;
+  lastUpdateCheck?: number;
   windowState: WindowState;
 }
 
