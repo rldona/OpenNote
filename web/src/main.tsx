@@ -1,7 +1,10 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
+import { applySavedPrefs } from './prefs';
 import './styles.css';
+
+applySavedPrefs();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

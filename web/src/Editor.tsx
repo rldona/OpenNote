@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { EditorContent, useEditor, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
@@ -6,6 +6,7 @@ import Placeholder from '@tiptap/extension-placeholder';
 import Highlight from '@tiptap/extension-highlight';
 import { TaskItem, TaskList } from '@tiptap/extension-list';
 import { Table, TableCell, TableHeader, TableRow } from '@tiptap/extension-table';
+import { Icon } from './Icon';
 import { api, type Note } from './api';
 import { lockNote, type NoteCipher } from './crypto';
 import { PassphraseDialog } from './Locked';
@@ -242,7 +243,7 @@ function Toolbar({ editor, onFile, onLinkNote, locked, onToggleLock, recorder, o
   const fileInput = useRef<HTMLInputElement>(null);
   const dueInput = useRef<HTMLInputElement>(null);
   const chain = () => editor.chain().focus();
-  const btn = (label: string, text: string, run: () => void, active?: boolean) => (
+  const btn = (label: string, text: ReactNode, run: () => void, active?: boolean) => (
     <button
       key={label}
       type="button"
@@ -272,7 +273,7 @@ function Toolbar({ editor, onFile, onLinkNote, locked, onToggleLock, recorder, o
       {btn(t('checklist'), '☑', () => chain().toggleTaskList().run(), editor.isActive('taskList'))}
       {btn(
         t('dueDate'),
-        '📅',
+        <Icon name="calendar" size={16} />,
         () => {
           const input = dueInput.current;
           if (!input || !editor.isActive('taskItem')) return;
@@ -298,7 +299,7 @@ function Toolbar({ editor, onFile, onLinkNote, locked, onToggleLock, recorder, o
       {btn(t('rule'), '—', () => chain().setHorizontalRule().run())}
       {btn(
         t('link'),
-        '🔗',
+        <Icon name="link" size={16} />,
         () => {
           const prev = editor.getAttributes('link').href as string | undefined;
           const url = window.prompt(t('linkPrompt'), prev ?? 'https://');
@@ -309,15 +310,15 @@ function Toolbar({ editor, onFile, onLinkNote, locked, onToggleLock, recorder, o
         editor.isActive('link'),
       )}
       {btn(t('linkNote'), '⛓', onLinkNote)}
-      {btn(locked ? t('removeLock') : t('lockNote'), locked ? '🔓' : '🔒', onToggleLock, locked)}
+      {btn(locked ? t('removeLock') : t('lockNote'), locked ? <Icon name="unlock" size={16} /> : <Icon name="lock" size={16} />, onToggleLock, locked)}
       {btn(
         recorder.recording ? t('stopRecording') : t('record'),
-        recorder.recording ? `⏹ ${Math.floor(recorder.seconds / 60)}:${String(recorder.seconds % 60).padStart(2, '0')}` : '🎙',
+        recorder.recording ? `⏹ ${Math.floor(recorder.seconds / 60)}:${String(recorder.seconds % 60).padStart(2, '0')}` : <Icon name="mic" size={16} />,
         () => (recorder.recording ? recorder.stop() : void recorder.start()),
         recorder.recording,
       )}
-      {btn(t('sketch'), '✏️', onSketch)}
-      {btn(t('attach'), '📎', () => fileInput.current?.click())}
+      {btn(t('sketch'), <Icon name="pencil" size={16} />, onSketch)}
+      {btn(t('attach'), <Icon name="clip" size={16} />, () => fileInput.current?.click())}
       <input
         ref={fileInput}
         type="file"

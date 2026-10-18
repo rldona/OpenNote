@@ -69,7 +69,7 @@ Back up that folder and you have backed up everything.
   downloaded into the note — see [extension/README.md](extension/README.md)
 - **Sync between devices without any cloud**: through a folder you choose (Syncthing, iCloud Drive, Dropbox, USB…),
   with conflict copies instead of data loss and optional AES-256 encryption — see [docs/SYNC.md](docs/SYNC.md)
-- Light/dark theme, English and Spanish UI
+- Light/dark theme (or follow the system), five accent colours, notebooks overview, focus mode, English and Spanish UI
 - Loopback-only server: Host and Origin checks protect your notes from other websites
 
 ## How it is built

@@ -6,6 +6,22 @@ when a `v*` tag is pushed; the section of the tag becomes the release notes.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-18
+
+### Changed
+- **New look**, following the direction of Evernote's 2024 redesign (a simpler layout that keeps the focus on your notes):
+  the dark sidebar is gone in favour of a light, unified one; new colour palette; softer cards and rounded controls;
+  SVG icons instead of emoji; a centred, more readable editor column.
+- The search box moved to the top of the sidebar; note actions (reminder, pin, history, focus mode, more) are icon buttons.
+
+### Added
+- **Notebooks overview**: every notebook as a card with its note count and last update, grouped by stack.
+- **Home** is now its own page (greeting, quick capture, tasks due, reminders, pinned notes, notebooks, recent notes).
+- **Appearance menu**: theme (system / light / dark) and five accent colours, remembered on this device.
+- **Note list options**: sort by last updated, date created or title; compact density.
+- **Focus mode** (editor only) and a collapsible sidebar.
+- Shortcuts: `/` jumps to search, Ctrl/⌘+N creates a note.
+
 ## [0.1.2] - 2026-10-18
 
 ### Fixed
@@ -49,7 +65,8 @@ First public build.
 - Local-only by design: the server listens on loopback only, with Host/Origin checks, a strict Content-Security-Policy and
   sanitized HTML.
 
-[Unreleased]: https://github.com/rldona/OpenNote/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/rldona/OpenNote/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/rldona/OpenNote/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/rldona/OpenNote/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/rldona/OpenNote/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/rldona/OpenNote/releases/tag/v0.1.0

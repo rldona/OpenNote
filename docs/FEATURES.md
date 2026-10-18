@@ -43,9 +43,10 @@ as long as it respects the target's license.
 | | Search inside attachments: text, PDF (Poppler), images/scans (Tesseract OCR), both optional | ✅ |
 | | Date operators, negation, `any:`, `intitle:`, `sourceUrl:` | ✅ |
 | Act | Reminders + notifications | ✅ |
-| | Home dashboard (tasks due, reminders, pinned, recent) | ✅ |
+| | Home page (tasks due, reminders, pinned, notebooks, recent) | ✅ |
 | | Installable PWA | ✅ |
 | | Tasks view with due dates | ✅ |
+| | Notebooks overview, focus mode, sort and density options, theme and accent colours | ✅ |
 | Move | ENEX import / export | ✅ |
 | | Markdown export (per note) | ✅ |
 | | Zip export (Markdown + attachments) | ✅ |
