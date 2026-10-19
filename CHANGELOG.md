@@ -6,6 +6,11 @@ when a `v*` tag is pushed; the section of the tag becomes the release notes.
 
 ## [Unreleased]
 
+### Added
+- **Desktop app: sync with Google Drive.** In the sync panel choose **Google Drive** next to the folder option, connect in your
+  browser, set the passphrase and sync. It keeps working without asking again every hour. Needs the one-time Google Cloud
+  setup in `docs/GOOGLE-DRIVE-SETUP.md` (a second, "Desktop app" client); until then the panel says it is not set up.
+
 ### Fixed
 - Web sync panel: the **Sync automatically** checkbox could not be changed (it saved the value it already had); it now works.
 - Web sync panel: it closes by itself, with a confirmation message, when **Sync now** finishes well; if the sync fails it stays open

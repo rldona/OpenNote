@@ -8,7 +8,8 @@ export interface Note extends NoteSummary { content: string; sourceUrl: string |
 export interface TagCount { name: string; count: number; total: number; virtual: boolean }
 export interface SavedSearch { id: string; name: string; query: string }
 export interface Task { noteId: string; noteTitle: string; notebookId: string; idx: number; text: string; checked: boolean; due: string | null }
-export interface SyncConfig { folder: string | null; remote: boolean; remoteLabel: string | null; requireEncryption: boolean; enabled: boolean; intervalMinutes: number; hasPassphrase: boolean; deviceName: string }
+export interface SyncConfig { folder: string | null; remote: boolean; canChooseBackend: boolean; remoteLabel: string | null; requireEncryption: boolean; enabled: boolean; intervalMinutes: number; hasPassphrase: boolean; deviceName: string }
+export interface GoogleInfo { configured: boolean; connected: boolean; state: 'idle' | 'waiting' | 'error'; error?: string }
 export interface SyncStatus {
   running: boolean; lastRunAt: number | null; ok: boolean; pushed: number; pulled: number; deleted: number;
   conflicts: { noteId: string; title: string; at: number }[]; errors: string[];
@@ -74,9 +75,12 @@ export const api = {
   merge: (ids: string[]) => req<Note>('POST', '/notes/merge', { ids }),
   backlinks: (id: string) => req<{ id: string; title: string }[]>('GET', `/notes/${id}/backlinks`),
   syncConfig: () => req<SyncConfig>('GET', '/sync/config'),
-  setSyncConfig: (patch: Partial<Omit<SyncConfig, 'hasPassphrase'>> & { passphrase?: string | null }) =>
+  setSyncConfig: (patch: Partial<Omit<SyncConfig, 'hasPassphrase'>> & { passphrase?: string | null; backend?: 'folder' | 'remote' }) =>
     req<SyncConfig>('PUT', '/sync/config', patch),
   syncStatus: () => req<SyncStatus>('GET', '/sync/status'),
+  googleStatus: () => req<GoogleInfo>('GET', '/sync/google'),
+  googleConnect: () => req<{ url: string }>('POST', '/sync/google/connect'),
+  googleDisconnect: () => req<GoogleInfo>('POST', '/sync/google/disconnect'),
   syncNow: () => req<SyncStatus>('POST', '/sync/run'),
   attachments: (noteId: string) => req<{ id: string; filename: string; mime: string; size: number }[]>('GET', `/notes/${noteId}/attachments`),
   deleteAttachment: (id: string) => req<void>('DELETE', `/attachments/${id}`),

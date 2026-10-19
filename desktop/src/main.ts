@@ -21,6 +21,13 @@ const isMac = process.platform === 'darwin';
 const PREFERRED_PORT = 37370; // keeps the origin (and so localStorage, notification permission) stable between launches
 const REPO_URL = 'https://github.com/rldona/OpenNote';
 const SMOKE = process.env.OPENNOTE_SMOKE === '1';
+/** Google OAuth client (desktop type) baked in at build time by scripts/bundle.mjs; the environment can override it. */
+declare const __GOOGLE_CLIENT_ID__: string;
+declare const __GOOGLE_CLIENT_SECRET__: string;
+const GOOGLE = {
+  clientId: process.env.OPENNOTE_GOOGLE_CLIENT_ID || __GOOGLE_CLIENT_ID__,
+  clientSecret: process.env.OPENNOTE_GOOGLE_CLIENT_SECRET || __GOOGLE_CLIENT_SECRET__,
+};
 
 // ------------------------------------------------------------------- text
 
@@ -558,7 +565,7 @@ async function smokeTest(): Promise<void> {
 
 async function boot(): Promise<void> {
   settings = loadSettings();
-  const options = { dataDir: resolveDataDir(settings), webDist: webDist(), lang: app.getLocale(), log: console.warn };
+  const options = { dataDir: resolveDataDir(settings), webDist: webDist(), lang: app.getLocale(), google: GOOGLE, log: console.warn };
   server = await startServer({ ...options, port: PREFERRED_PORT }).catch(() => startServer({ ...options, port: 0 }));
 
   lockDownSession();

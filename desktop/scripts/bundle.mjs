@@ -16,6 +16,11 @@ await build({
   external: ['electron'],
   // Some bundled CommonJS dependencies call require() for Node built-ins.
   banner: { js: "import { createRequire as __cr } from 'node:module'; const require = __cr(import.meta.url);" },
+  // Google OAuth client for Drive sync (public for installed apps). Empty: the sync panel says it is not set up.
+  define: {
+    __GOOGLE_CLIENT_ID__: JSON.stringify(process.env.OPENNOTE_GOOGLE_CLIENT_ID ?? ''),
+    __GOOGLE_CLIENT_SECRET__: JSON.stringify(process.env.OPENNOTE_GOOGLE_CLIENT_SECRET ?? ''),
+  },
   logLevel: 'info',
 });
 

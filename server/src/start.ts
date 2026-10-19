@@ -5,9 +5,11 @@ import { join, resolve } from 'node:path';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { createApp } from './app.js';
+import { GoogleAuth, type GoogleClient } from './google-oauth.js';
 import { AttachmentIndexer } from './indexer.js';
 import { openDb } from './db.js';
 import { NoteStore } from './store.js';
+import { GoogleDriveTransport } from './sync-gdrive.js';
 import { SyncEngine, startSyncScheduler } from './sync.js';
 
 export interface StartOptions {
@@ -18,6 +20,8 @@ export interface StartOptions {
   webDist?: string;
   /** Language of the starter templates, e.g. "es_ES.UTF-8". */
   lang?: string;
+  /** OAuth client of the installed-app type for Google Drive sync; OPENNOTE_GOOGLE_CLIENT_ID / _SECRET also work. */
+  google?: Partial<GoogleClient>;
   log?: (message: string) => void;
 }
 
@@ -56,10 +60,20 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
   const dataDir = resolve(opts.dataDir);
   const store = new NoteStore(openDb(join(dataDir, 'opennote.db')), join(dataDir, 'attachments'));
   store.seedTemplates(opts.lang ?? 'en');
-  const sync = new SyncEngine(store, { dataDir });
+  const google = new GoogleAuth(store, {
+    clientId: opts.google?.clientId || process.env.OPENNOTE_GOOGLE_CLIENT_ID,
+    clientSecret: opts.google?.clientSecret || process.env.OPENNOTE_GOOGLE_CLIENT_SECRET,
+  });
+  const sync = new SyncEngine(store, {
+    dataDir,
+    allowFolder: true,
+    remoteLabel: 'Google Drive',
+    requireEncryption: true,
+    transport: () => new GoogleDriveTransport({ getToken: (force) => google.getToken(force) }),
+  });
   const indexer = new AttachmentIndexer(store, { log: opts.log });
   void indexer.init();
-  const app = createApp(store, sync, undefined, indexer);
+  const app = createApp(store, sync, undefined, indexer, { google });
   const stopSync = startSyncScheduler(sync, opts.log);
 
   if (opts.webDist && existsSync(join(opts.webDist, 'index.html'))) {
@@ -89,6 +103,7 @@ export async function startServer(opts: StartOptions): Promise<RunningServer> {
     sync,
     async close() {
       stopSync();
+      google.close();
       await new Promise<void>((done) => {
         server.close(() => done());
         (server as Server).closeAllConnections?.();

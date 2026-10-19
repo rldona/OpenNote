@@ -1,7 +1,68 @@
 import { useEffect, useState } from 'react';
-import { api, type SyncConfig, type SyncStatus } from './api';
+import { api, type GoogleInfo, type SyncConfig, type SyncStatus } from './api';
 import { locale, t } from './i18n';
 import { connect, disconnect, driveConfigured, isConnected, preloadGoogle } from './standalone/google-auth';
+
+/**
+ * The Google Drive connection, whichever way this build signs in: on the page itself (browser build, Google's popup) or through
+ * the local server (desktop app: the system browser, then a token the server keeps).
+ */
+function useDrive(active: boolean) {
+  const [connected, setConnected] = useState(__STANDALONE__ ? isConnected() : false);
+  const [configured, setConfigured] = useState(__STANDALONE__ ? driveConfigured() : false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = async () => {
+    const g: GoogleInfo = await api.googleStatus();
+    setConfigured(g.configured);
+    setConnected(g.connected);
+    setBusy(g.state === 'waiting');
+    setError(g.state === 'error' ? g.error ?? null : null);
+    return g;
+  };
+
+  useEffect(() => {
+    if (!active) return;
+    if (__STANDALONE__) {
+      if (driveConfigured()) void preloadGoogle().catch(() => undefined); // so the click can open the popup at once
+    } else {
+      void refresh().catch(() => undefined);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active]);
+
+  const signIn = async () => {
+    setError(null);
+    setBusy(true);
+    try {
+      if (__STANDALONE__) {
+        await connect();
+        setConnected(true);
+        setBusy(false);
+      } else {
+        window.open((await api.googleConnect()).url, '_blank', 'noopener');
+        // The server finishes the sign-in when Google redirects to it; wait for that.
+        for (let i = 0; i < 200; i++) {
+          await new Promise((r) => setTimeout(r, 1500));
+          const g = await refresh();
+          if (g.state !== 'waiting') break;
+        }
+      }
+    } catch (e) {
+      setError((e as Error).message);
+      setBusy(false);
+    }
+  };
+
+  const signOut = async () => {
+    if (__STANDALONE__) disconnect();
+    else await api.googleDisconnect();
+    setConnected(false);
+  };
+
+  return { connected, configured, busy, error, signIn, signOut };
+}
 
 /** Settings and status for folder-based sync. */
 export function SyncPanel({ onClose, onSynced }: { onClose: () => void; onSynced: (result: SyncStatus, autoEnabled: boolean) => void }) {
@@ -13,14 +74,11 @@ export function SyncPanel({ onClose, onSynced }: { onClose: () => void; onSynced
   const [pass, setPass] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [connected, setConnected] = useState(isConnected());
-  const [signing, setSigning] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const drive = useDrive(!!cfg?.remote);
 
   useEffect(() => {
-    // Load Google's script now so that a later click can open the sign-in popup immediately.
-    if (__STANDALONE__ && driveConfigured()) void preloadGoogle().catch(() => undefined);
     setLoadError(null);
     Promise.all([api.syncConfig(), api.syncStatus()])
       .then(([c, s]) => {
@@ -76,19 +134,6 @@ export function SyncPanel({ onClose, onSynced }: { onClose: () => void; onSynced
     }
   };
 
-  const signIn = async () => {
-    setError(null);
-    setSigning(true);
-    try {
-      await connect();
-      setConnected(true);
-    } catch (e) {
-      setError(`${t('driveCancelled')}: ${(e as Error).message}`);
-    } finally {
-      setSigning(false);
-    }
-  };
-
   if (loadError && !cfg) {
     return (
       <div className="modal-backdrop" onClick={onClose}>
@@ -105,24 +150,40 @@ export function SyncPanel({ onClose, onSynced }: { onClose: () => void; onSynced
   }
   if (!cfg) return null;
   const remote = cfg.remote;
-  const canSync = remote ? connected && (cfg.hasPassphrase || !!pass) : !!folder.trim();
+  const canSync = remote ? drive.connected && (cfg.hasPassphrase || !!pass) : !!folder.trim();
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal sync-panel" role="dialog" aria-label={remote ? t('driveTitle') : t('syncTitle')} onClick={(e) => e.stopPropagation()}>
         <h3>{remote ? t('driveTitle') : t('syncTitle')}</h3>
         <p className="muted">{remote ? t('driveHelp') : t('syncHelp')}</p>
+        {cfg.canChooseBackend && (
+          <div className="segmented backend" role="group" aria-label={t('syncTitle')}>
+            {([['folder', t('backendFolder')], ['remote', t('backendDrive')]] as const).map(([value, label]) => (
+              <button
+                key={value}
+                className={(value === 'remote') === remote ? 'active' : ''}
+                aria-pressed={(value === 'remote') === remote}
+                onClick={() => void save({ backend: value })}
+              >{label}</button>
+            ))}
+          </div>
+        )}
         {remote ? (
-          !driveConfigured() ? (
+          !drive.configured ? (
             <p className="error" role="alert">{t('driveNotSetUp')}</p>
           ) : (
-            <div className="row drive-connect">
-              <strong>{connected ? `✓ ${t('driveConnected')}` : t('driveNotConnected')}</strong>
-              {connected ? (
-                <button onClick={() => { disconnect(); setConnected(false); void save({ enabled: false }); }}>{t('driveDisconnect')}</button>
-              ) : (
-                <button className="primary" disabled={signing} onClick={() => void signIn()}>{signing ? t('driveWorking') : t('driveConnect')}</button>
-              )}
-            </div>
+            <>
+              <div className="row drive-connect">
+                <strong>{drive.connected ? `✓ ${t('driveConnected')}` : t('driveNotConnected')}</strong>
+                {drive.connected ? (
+                  <button onClick={() => void drive.signOut().then(() => save({ enabled: false }))}>{t('driveDisconnect')}</button>
+                ) : (
+                  <button className="primary" disabled={drive.busy} onClick={() => void drive.signIn()}>{drive.busy ? t('driveWorking') : t('driveConnect')}</button>
+                )}
+              </div>
+              {drive.busy && !__STANDALONE__ && <p className="muted">{t('driveBrowser')}</p>}
+              {drive.error && <p className="error" role="alert">{drive.error}</p>}
+            </>
           )
         ) : (
           <label>

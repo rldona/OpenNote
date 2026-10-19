@@ -122,7 +122,17 @@ Built (`server/src/sync-gdrive.ts`, `web/src/standalone/google-auth.ts`, the syn
 - **Verified against the real Google** (2026-10-19): connecting an account in Chrome, then a first sync that pushed 3 notes with
   `ok` status. Not yet verified: a second device pulling them, token renewal after the first hour, large attachments, Firefox/Safari.
 
-Still to do: desktop app (loopback OAuth with a refresh token), a "reconnect" prompt when silent renewal is blocked, Firefox/Safari.
+Desktop app and command line (`server/src/google-oauth.ts`): the same engine and the same Drive transport, with a sign-in the
+"installed application" way: system browser → one-shot server on `127.0.0.1` → code exchanged with PKCE → refresh token kept in the
+local database → access tokens renewed silently (no hourly click, unlike the browser build). The engine now holds both a folder and
+the remote and the user picks (`sync.backend`); the sync panel has the choice. Needs a second OAuth client of the *Desktop app*
+type: see GOOGLE-DRIVE-SETUP.md. Tested against a fake Google (token endpoint with a PKCE check, loopback listener, revoked
+permission, wrong state, denied access); not yet run against the real Google.
+
+Browser build, renewal: when the browser blocks Google's hourly silent renewal, OpenNote says so and renews with the next click
+anywhere (verified against the real Google).
+
+Still to do: first real desktop sign-in (needs the Desktop OAuth client), Firefox/Safari.
 
 ### Phase 2: Google Drive (original design)
 

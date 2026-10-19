@@ -30,6 +30,24 @@ OpenNote cannot see or change the user's other files, and the notes in it are en
      `GOOGLE_CLIENT_ID`, value the client ID.
 6. Re-run the **Pages** workflow (Actions → Pages → *Run workflow*). The site then shows **Connect Google Drive** in the sync panel.
 
+## Desktop app and command line (a second OAuth client)
+
+The desktop app signs in differently from the web version: it opens your normal browser, Google sends the answer back to a
+one-shot listener on `127.0.0.1`, and the app keeps a long-lived token, so it keeps syncing without asking again every hour.
+That needs its own client of a different type:
+
+1. Same project, **APIs & Services → Credentials → Create credentials → OAuth client ID**.
+2. Application type: **Desktop app**, name *OpenNote desktop*. No origins or redirect URIs to fill in.
+3. Copy the **Client ID** and the **Client secret**. For installed apps Google documents the secret as *not confidential*; it ships
+   inside the app, and the sign-in is protected by PKCE and by the user approving it in their browser.
+4. Give them to the build: tell Claude, or in the repository **Settings → Secrets and variables → Actions** create the variable
+   `GOOGLE_DESKTOP_CLIENT_ID` and the secret `GOOGLE_DESKTOP_CLIENT_SECRET`. The next release's installers then include them.
+5. To run the command-line version with Drive sync, set the environment variables `OPENNOTE_GOOGLE_CLIENT_ID` and
+   `OPENNOTE_GOOGLE_CLIENT_SECRET` before `npm start`.
+
+In the desktop app, open the sync panel, choose **Google Drive**, press **Connect**, approve in the browser that opens, then set the
+passphrase (the same one as on your other devices) and press **Sync now**. The folder option is still there next to it.
+
 ## Things to know
 
 - **"Testing" mode is enough for personal use** and costs nothing. Google shows an "unverified app" screen the first time; choose

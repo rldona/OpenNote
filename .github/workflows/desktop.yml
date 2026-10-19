@@ -51,6 +51,11 @@ jobs:
 
       - name: Bundle desktop app
         run: npm run bundle -w desktop
+        env:
+          # Google OAuth client of the "Desktop app" type for Drive sync (see docs/GOOGLE-DRIVE-SETUP.md). The client secret of an
+          # installed app is not confidential by Google's own rules; it ends up inside the app. Empty: the panel says it is not set up.
+          OPENNOTE_GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_DESKTOP_CLIENT_ID }}
+          OPENNOTE_GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_DESKTOP_CLIENT_SECRET }}
 
       - name: Smoke test (source)
         if: runner.os != 'Linux'

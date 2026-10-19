@@ -67,8 +67,10 @@ export interface SyncStatus {
 
 export interface SyncConfig {
   folder: string | null;
-  /** True when sync goes to a built-in remote (e.g. Google Drive in the browser build) instead of a folder. */
+  /** True when sync currently goes to the built-in remote (Google Drive) instead of a folder. */
   remote: boolean;
+  /** Both a folder and the remote are available (desktop app, command line); the browser build only has the remote. */
+  canChooseBackend: boolean;
   /** Name of that remote, for the interface. */
   remoteLabel: string | null;
   /** The remote refuses to store anything that is not encrypted, so a passphrase is mandatory. */
@@ -190,6 +192,8 @@ export class SyncEngine {
       /** Replaces the configured folder: tests, and remotes such as Google Drive. Called for every run. */
       transport?: () => SyncTransport;
       remoteLabel?: string;
+      /** Keep the folder as an option next to the remote. Without it the remote is the only destination. */
+      allowFolder?: boolean;
       /** Never write to the remote without a passphrase (the provider must only ever see ciphertext). */
       requireEncryption?: boolean;
     },
@@ -217,9 +221,10 @@ export class SyncEngine {
     const passphrase = this.store.getMeta('sync.passphrase');
     return {
       folder: this.store.getMeta('sync.folder'),
-      remote: !!this.opts.transport,
+      remote: this.useRemote(),
+      canChooseBackend: !!this.opts.transport && !!this.opts.allowFolder,
       remoteLabel: this.opts.remoteLabel ?? null,
-      requireEncryption: !!this.opts.requireEncryption,
+      requireEncryption: this.useRemote() && !!this.opts.requireEncryption,
       enabled: this.store.getMeta('sync.enabled') === '1',
       intervalMinutes: Number(this.store.getMeta('sync.interval') ?? 5),
       encrypted: !!passphrase,
@@ -228,13 +233,23 @@ export class SyncEngine {
     };
   }
 
-  setConfig(patch: { folder?: string | null; enabled?: boolean; intervalMinutes?: number; passphrase?: string | null; deviceName?: string }): void {
+  /** Remote only (no folder allowed), or the user picked the remote. */
+  private useRemote(): boolean {
+    return !!this.opts.transport && (!this.opts.allowFolder || this.store.getMeta('sync.backend') === 'remote');
+  }
+
+  setConfig(patch: { folder?: string | null; backend?: 'folder' | 'remote'; enabled?: boolean; intervalMinutes?: number; passphrase?: string | null; deviceName?: string }): void {
+    if (patch.backend !== undefined) {
+      if (patch.backend !== 'folder' && patch.backend !== 'remote') throw new SyncError('unknown sync destination');
+      if (patch.backend === 'remote' && !this.opts.transport) throw new SyncError('this version has no remote destination');
+      this.store.setMeta('sync.backend', patch.backend);
+    }
     if (patch.folder !== undefined) {
       if (patch.folder === null || patch.folder === '') this.store.setMeta('sync.folder', null);
       else this.store.setMeta('sync.folder', this.validateFolder(patch.folder));
     }
     if (patch.enabled !== undefined) {
-      if (patch.enabled && !this.opts.transport && !(patch.folder ?? this.store.getMeta('sync.folder'))) throw new SyncError('choose a folder first');
+      if (patch.enabled && !this.useRemote() && !(patch.folder ?? this.store.getMeta('sync.folder'))) throw new SyncError('choose a folder first');
       this.store.setMeta('sync.enabled', patch.enabled ? '1' : '0');
     }
     if (patch.intervalMinutes !== undefined) {
@@ -264,15 +279,16 @@ export class SyncEngine {
   async run(): Promise<SyncStatus> {
     if (this.running) return this.getStatus();
     const folder = this.store.getMeta('sync.folder');
-    if (!folder && !this.opts.transport) throw new SyncError('no sync folder configured');
-    if (this.opts.requireEncryption && !this.store.getMeta('sync.passphrase')) {
+    const remote = this.useRemote();
+    if (!folder && !remote) throw new SyncError('no sync folder configured');
+    if (remote && this.opts.requireEncryption && !this.store.getMeta('sync.passphrase')) {
       throw new SyncError(`${this.opts.remoteLabel ?? 'This destination'} only stores encrypted data: set a passphrase first`);
     }
     this.running = true;
     const stats = { pushed: 0, pulled: 0, deleted: 0, conflicts: [] as SyncConflict[], errors: [] as string[] };
     let fatal: string | null = null;
     try {
-      const transport = this.opts.transport ? this.opts.transport() : new FolderTransport(join(this.validateFolder(folder!), 'opennote-sync'));
+      const transport = remote ? this.opts.transport!() : new FolderTransport(join(this.validateFolder(folder!), 'opennote-sync'));
       const codec = await this.openRemote(transport);
       await this.syncAll(transport, codec, stats);
     } catch (err) {

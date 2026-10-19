@@ -471,3 +471,6 @@ button.with-icon { display: inline-flex; align-items: center; justify-content: c
 .desktop-mac:not(.desktop-fs) .app.no-sidebar .sidebar-show { left: 84px; top: 9px; }
 .desktop-mac:not(.desktop-fs) .app.no-sidebar.no-list .note-meta-bar { padding-left: 100px; }
 .modal.prompt { width: min(420px, 92vw); }
+
+.sync-panel .segmented.backend { margin: 4px 0 10px; }
+.sync-panel .drive-connect { align-items: center; }

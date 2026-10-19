@@ -6,6 +6,7 @@ import { exportZip, importArchive, importFile, looksLikeZip } from './import.js'
 import { noteToMarkdown } from './markdown.js';
 import { sanitizeHtml } from './html.js';
 import { NoteStore, NotFoundError, ValidationError, type NoteInput } from './store.js';
+import type { GoogleConnection } from './google-connection.js';
 import { SyncEngine, SyncError } from './sync.js';
 
 /** Browser extensions may call the clip endpoint (and only it); web pages cannot forge this Origin. */
@@ -23,6 +24,8 @@ export interface AppOptions {
    * worker, so there is no foreign host or origin to guard against and the checks below are skipped.
    */
   standalone?: boolean;
+  /** Google Drive sign-in through the local server (desktop app, command line). The browser build signs in on the page instead. */
+  google?: GoogleConnection;
 }
 
 export function createApp(store: NoteStore, sync?: SyncEngine, clipOptions?: ClipOptions, indexer?: AttachmentIndexer, options: AppOptions = {}): Hono {
@@ -229,11 +232,21 @@ export function createApp(store: NoteStore, sync?: SyncEngine, clipOptions?: Cli
 
   // --------------------------------------------------------------------- sync
   app.get('/api/sync/config', (c) => (sync ? c.json(sync.getConfig()) : c.json({ error: 'sync is not available' }, 404)));
+  const google = options.google;
+  const googleInfo = () => (google ? { configured: google.configured(), connected: google.connected(), ...google.state() } : null);
+  app.get('/api/sync/google', (c) => (google ? c.json(googleInfo()) : c.json({ error: 'not available' }, 404)));
+  app.post('/api/sync/google/connect', async (c) => (google ? c.json(await google.begin()) : c.json({ error: 'not available' }, 404)));
+  app.post('/api/sync/google/disconnect', async (c) => {
+    if (!google) return c.json({ error: 'not available' }, 404);
+    await google.disconnect();
+    return c.json(googleInfo());
+  });
   app.put('/api/sync/config', async (c) => {
     if (!sync) return c.json({ error: 'sync is not available' }, 404);
     const b = await body(c);
     const patch: Parameters<SyncEngine['setConfig']>[0] = {};
     if (b.folder === null || typeof b.folder === 'string') patch.folder = b.folder;
+    if (b.backend === 'folder' || b.backend === 'remote') patch.backend = b.backend;
     if (typeof b.enabled === 'boolean') patch.enabled = b.enabled;
     if (typeof b.intervalMinutes === 'number') patch.intervalMinutes = b.intervalMinutes;
     if (b.passphrase === null || typeof b.passphrase === 'string') patch.passphrase = b.passphrase;
