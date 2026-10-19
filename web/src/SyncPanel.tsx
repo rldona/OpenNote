@@ -32,7 +32,8 @@ function useDrive(active: boolean) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
 
-  const signIn = async () => {
+  /** Resolves to true when the account ended up connected. */
+  const signIn = async (): Promise<boolean> => {
     setError(null);
     setBusy(true);
     try {
@@ -40,18 +41,21 @@ function useDrive(active: boolean) {
         await connect();
         setConnected(true);
         setBusy(false);
+        return true;
       } else {
         window.open((await api.googleConnect()).url, '_blank', 'noopener');
         // The server finishes the sign-in when Google redirects to it; wait for that.
         for (let i = 0; i < 200; i++) {
           await new Promise((r) => setTimeout(r, 1500));
           const g = await refresh();
-          if (g.state !== 'waiting') break;
+          if (g.state !== 'waiting') return g.connected;
         }
+        return false;
       }
     } catch (e) {
       setError((e as Error).message);
       setBusy(false);
+      return false;
     }
   };
 
@@ -244,6 +248,9 @@ export function SyncPanel({ onClose, onSynced }: { onClose: () => void; onSynced
               <div className="error">
                 <strong>{t('syncErrors')}</strong>
                 <ul>{status.errors.map((e, i) => <li key={i}>{e}</li>)}</ul>
+                {remote && status.errors.some((e) => /connect again|Connect Google Drive first|withdrawn/i.test(e)) && (
+                  <button className="primary" disabled={drive.busy} onClick={() => void drive.signIn().then((ok) => (ok ? syncNow() : undefined))}>{drive.busy ? t('driveWorking') : t('driveReconnectBtn')}</button>
+                )}
               </div>
             )}
           </div>

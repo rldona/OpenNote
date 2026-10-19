@@ -16,6 +16,8 @@ when a `v*` tag is pushed; the section of the tag becomes the release notes.
   remembered.
 
 ### Fixed
+- Web sync panel: when Google says it needs you to connect again, the status now shows Google's reason and a **Connect again**
+  button that reconnects and syncs straight away (before, the panel said "Connected" and offered no way out except Disconnect).
 - **Web version: Google's account chooser kept appearing** even after signing in. The access token only lived in memory, so every
   reload needed a new one, and OpenNote did not tell Google which account to use, so with several Google accounts open in the
   browser it asked every time. The token (valid about an hour, limited to OpenNote's hidden Drive folder) is now kept in the browser

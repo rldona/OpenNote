@@ -176,7 +176,9 @@ export function getToken(force: boolean): Promise<string> {
         renewOnNextGesture();
         throw new Error('Google Drive sync paused: click anywhere in OpenNote to resume');
       }
-      throw new Error('Google needs you to connect again');
+      // Keep Google's reason (popup_closed, interaction_required, access_denied...) so a failure can be understood.
+      window.dispatchEvent(new Event('opennote:drive-needs-connect'));
+      throw new Error(`Google needs you to connect again (${err.message})`);
     })
     .finally(() => {
       inflight = null;
