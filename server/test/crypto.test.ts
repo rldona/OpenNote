@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { createApp } from '../src/app.js';
-import { openDb } from '../src/db.js';
+import { openTestDb } from './helpers.js';
 import { NoteStore } from '../src/store.js';
 import { WrongPassphraseError, isEncryptedHtml, lockNote, parseEnvelope, unlockNote } from '../../web/src/crypto.js';
 
@@ -55,7 +55,7 @@ describe('encrypted notes (browser crypto)', () => {
 describe('server with encrypted notes', () => {
   const setup = () => {
     const dir = mkdtempSync(join(tmpdir(), 'opennote-enc-'));
-    const store = new NoteStore(openDb(':memory:'), join(dir, 'attachments'));
+    const store = new NoteStore(openTestDb(), join(dir, 'attachments'));
     return { store, app: createApp(store) };
   };
   const H = { host: 'localhost:3737', 'content-type': 'application/json' };

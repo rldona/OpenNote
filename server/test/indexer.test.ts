@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { createApp } from '../src/app.js';
-import { openDb } from '../src/db.js';
+import { openTestDb } from './helpers.js';
 import { findExecutable, extractText, kindOf, type Run, type Tools } from '../src/extract.js';
 import { AttachmentIndexer } from '../src/indexer.js';
 import { NoteStore } from '../src/store.js';
@@ -13,7 +13,7 @@ const PNG = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
 
 function setup(tools: Tools, run?: Run) {
   const dir = mkdtempSync(join(tmpdir(), 'opennote-idx-'));
-  const store = new NoteStore(openDb(':memory:'), join(dir, 'attachments'));
+  const store = new NoteStore(openTestDb(), join(dir, 'attachments'));
   const indexer = new AttachmentIndexer(store, { tools, run });
   return { store, indexer };
 }
@@ -66,7 +66,7 @@ describe('searching inside attachments', () => {
 
   it('waits for a missing tool and picks the file up when it appears', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'opennote-idx-'));
-    const store = new NoteStore(openDb(':memory:'), join(dir, 'attachments'));
+    const store = new NoteStore(openTestDb(), join(dir, 'attachments'));
     const n = store.createNote({ title: 'pic' });
     const first = new AttachmentIndexer(store, { tools: {}, run: fakeRun });
     store.addAttachment(n.id, { filename: 'p.png', mime: 'image/png', data: PNG });
@@ -130,7 +130,7 @@ describe('searching inside attachments', () => {
     expect(kindOf('application/octet-stream', 'log.txt')).toBe('text');
     expect(kindOf('audio/webm', 'a.webm')).toBe('unsupported');
     const dir = mkdtempSync(join(tmpdir(), 'opennote-idx-'));
-    const store = new NoteStore(openDb(':memory:'), join(dir, 'attachments'));
+    const store = new NoteStore(openTestDb(), join(dir, 'attachments'));
     const app = createApp(store, undefined, undefined, new AttachmentIndexer(store, { tools: { pdftotext: 'x' } }));
     const res = await app.request('/api/index/status', { headers: { host: 'localhost:3737' } });
     expect(await res.json()).toMatchObject({ pdf: true, ocr: false, pending: 0 });

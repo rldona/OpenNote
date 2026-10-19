@@ -2,7 +2,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { openDb } from '../src/db.js';
+import { openTestDb } from './helpers.js';
 import { NoteStore } from '../src/store.js';
 import { SyncEngine } from '../src/sync.js';
 import { FolderTransport, MemoryTransport, checkPath, type SyncTransport } from '../src/sync-transport.js';
@@ -56,7 +56,7 @@ describe.each(impls)('transport contract: %s', (_name, make) => {
 
 function device(name: string, remote: SyncTransport, passphrase?: string) {
   const dataDir = mkdtempSync(join(tmpdir(), `opennote-dev-${name}-`));
-  const store = new NoteStore(openDb(':memory:'), join(dataDir, 'attachments'));
+  const store = new NoteStore(openTestDb(), join(dataDir, 'attachments'));
   const engine = new SyncEngine(store, { dataDir, deviceName: name, transport: () => remote });
   if (passphrase) engine.setConfig({ passphrase });
   return { store, run: () => engine.run() };

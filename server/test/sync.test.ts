@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { openDb } from '../src/db.js';
+import { openTestDb } from './helpers.js';
 import { NoteStore } from '../src/store.js';
 import { SyncEngine, SyncError, compareVV } from '../src/sync.js';
 
@@ -10,7 +10,7 @@ let shared: string;
 
 function device(name: string, passphrase?: string) {
   const dataDir = mkdtempSync(join(tmpdir(), `opennote-dev-${name}-`));
-  const store = new NoteStore(openDb(':memory:'), join(dataDir, 'attachments'));
+  const store = new NoteStore(openTestDb(), join(dataDir, 'attachments'));
   const engine = new SyncEngine(store, { dataDir, deviceName: name });
   engine.setConfig({ folder: shared, enabled: true, passphrase: passphrase ?? null });
   return { name, store, engine, dataDir, sync: () => engine.run() };

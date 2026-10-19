@@ -27,13 +27,23 @@ ETag, md5…) so the engine skips files it has already parsed. A shared contract
 | # | Phase | Status |
 | --- | --- | --- |
 | 0 | Transport interface; folder sync on top of it; in-memory transport and contract tests | **done** |
-| 1 | Run OpenNote **without a local server**: portable core in the browser (see below) | next |
+| 1a | **SQL driver and attachment storage abstracted** under `NoteStore`; the whole server test suite also runs on sqlite-wasm | **done** |
+| 1b | Run OpenNote **without a local server**: the rest of the portable core in the browser (see below) | next |
 | 2 | `GoogleDriveTransport` + "Sign in with Google" | |
 | 3 | Settings UI: add / remove sync destinations; per-destination passphrase; desktop uses the same transport | |
 | 4 | Android: installable PWA first; a Capacitor shell only if the PWA falls short | |
 | 5 | More destinations: WebDAV (Nextcloud…), S3-compatible | |
 
-### Phase 1: the client must work alone
+### Phase 1a (done): two seams under the store
+
+- `SqlDatabase` (`server/src/sql.ts`): `exec` / `prepare().run|get|all` / `close`, positional parameters, plain-object rows.
+  Node's `DatabaseSync` satisfies it unchanged; `server/src/sql-wasm.ts` adapts sqlite-wasm.
+- `BlobStore` (`server/src/blobs.ts`): attachment bytes. `FsBlobStore` (files, as before) and `MemoryBlobStore`.
+- `schema.ts` holds the schema and migrations without Node imports; `db.ts` is only the Node opener.
+- **`npm test` now runs the full suite twice: on `node:sqlite` and on sqlite-wasm** (`OPENNOTE_TEST_DRIVER=wasm`). Both pass
+  all tests, so the store, the HTTP API, search, sync and encrypted notes behave identically on both engines.
+
+### Phase 1b: the client must work alone
 
 Today notes live in a Node process (`node:sqlite`, FTS5). A phone cannot run that, so the same code has to run in the
 browser:

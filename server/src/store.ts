@@ -1,7 +1,6 @@
-import type { DatabaseSync, SQLInputValue } from 'node:sqlite';
+import { FsBlobStore, type BlobStore } from './blobs.js';
+import type { SqlDatabase, SqlValue } from './sql.js';
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdirSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
 import { extractTasks, htmlToText, patchTaskItem, sanitizeHtml, snippet } from './html.js';
 
 export interface Notebook {
@@ -102,7 +101,7 @@ export class ValidationError extends Error {}
 const VERSION_INTERVAL_MS = 5 * 60 * 1000;
 const MAX_VERSIONS = 50;
 
-type Row = Record<string, SQLInputValue | null> & Record<string, any>;
+type Row = Record<string, SqlValue | null> & Record<string, any>;
 
 export interface DateRange {
   after?: number;
@@ -209,11 +208,14 @@ export function parseQuery(q: string, now = new Date()): ParsedQuery {
 const likeEscape = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
 
 export class NoteStore {
+  private readonly blobs: BlobStore;
+
   constructor(
-    private readonly db: DatabaseSync,
-    private readonly attachmentsDir: string,
+    private readonly db: SqlDatabase,
+    /** A directory (attachments stored as files) or any BlobStore. */
+    attachments: string | BlobStore,
   ) {
-    mkdirSync(attachmentsDir, { recursive: true });
+    this.blobs = typeof attachments === 'string' ? new FsBlobStore(attachments) : attachments;
     if (this.count('notebooks') === 0) this.createNotebook('Notes');
     this.backfillTasks();
     this.db.exec('DELETE FROM tags WHERE id NOT IN (SELECT tag_id FROM note_tags)');
@@ -468,7 +470,7 @@ export class NoteStore {
 
   listNotes(filter: ListFilter = {}): NoteSummary[] {
     const where: string[] = [];
-    const params: SQLInputValue[] = [];
+    const params: SqlValue[] = [];
     let join = '';
     const parsed = filter.q ? parseQuery(filter.q) : null;
 
@@ -604,7 +606,7 @@ export class NoteStore {
 
   listTasks(filter: TaskFilter = {}): Task[] {
     const where = ['n.trashed_at IS NULL', 'n.is_template = 0'];
-    const params: SQLInputValue[] = [];
+    const params: SqlValue[] = [];
     const status = filter.status ?? 'open';
     if (status !== 'all') where.push(`t.checked = ${status === 'done' ? 1 : 0}`);
     const today = NoteStore.localDay();
@@ -909,7 +911,7 @@ export class NoteStore {
         }
         const data = blobs.get(a.id);
         if (!data) throw new Error(`missing attachment data ${a.id}`);
-        writeFileSync(this.blobPath(a.id), data);
+        this.blobs.put(a.id, data);
         this.db
           .prepare(
             `INSERT INTO attachments (id, note_id, filename, mime, size, md5, sha256, created_at)
@@ -1031,10 +1033,6 @@ export class NoteStore {
 
   // -------------------------------------------------------------- attachments
 
-  private blobPath(id: string): string {
-    return join(this.attachmentsDir, id);
-  }
-
   addAttachment(noteId: string, file: { filename: string; mime: string; data: Uint8Array }): Attachment {
     this.getNote(noteId);
     const id = randomUUID();
@@ -1048,7 +1046,7 @@ export class NoteStore {
       md5: createHash('md5').update(buf).digest('hex'),
       createdAt: Date.now(),
     };
-    writeFileSync(this.blobPath(id), buf);
+    this.blobs.put(id, buf);
     this.db
       .prepare(
         `INSERT INTO attachments (id, note_id, filename, mime, size, md5, sha256, created_at)
@@ -1068,8 +1066,9 @@ export class NoteStore {
 
   getAttachment(id: string): Attachment & { data: Buffer } {
     const row = this.db.prepare('SELECT * FROM attachments WHERE id = ?').get(id) as Row | undefined;
-    if (!row || !existsSync(this.blobPath(id))) throw new NotFoundError('attachment not found');
-    return { ...toAttachment(row), data: readFileSync(this.blobPath(id)) };
+    const data = row ? this.blobs.get(id) : null;
+    if (!row || !data) throw new NotFoundError('attachment not found');
+    return { ...toAttachment(row), data: Buffer.from(data.buffer, data.byteOffset, data.byteLength) };
   }
 
   deleteAttachment(id: string): void {
@@ -1082,7 +1081,7 @@ export class NoteStore {
 
   private removeBlobIfOrphan(id: string): void {
     const still = this.db.prepare('SELECT 1 FROM attachments WHERE id = ?').get(id);
-    if (!still) rmSync(this.blobPath(id), { force: true });
+    if (!still) this.blobs.delete(id);
   }
 }
 

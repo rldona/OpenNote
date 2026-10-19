@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app.js';
-import { openDb } from '../src/db.js';
+import { openTestDb } from './helpers.js';
 import { importEnex, exportEnex } from '../src/enex.js';
 import { NoteStore, parseQuery } from '../src/store.js';
 
@@ -12,7 +12,7 @@ const H = { host: 'localhost:3737' };
 
 function setup() {
   const dir = mkdtempSync(join(tmpdir(), 'opennote-'));
-  const store = new NoteStore(openDb(':memory:'), join(dir, 'attachments'));
+  const store = new NoteStore(openTestDb(), join(dir, 'attachments'));
   return { store, app: createApp(store) };
 }
 

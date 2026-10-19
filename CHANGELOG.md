@@ -10,6 +10,9 @@ when a `v*` tag is pushed; the section of the tag becomes the release notes.
 - Sync internals: the merge engine now talks to a storage **transport** instead of the file system, so more destinations
   (Google Drive, WebDAV…) can be added without touching the merge rules. Folder sync behaves exactly as before.
   See `docs/SYNC-BACKENDS.md` for the plan.
+- The note store now sits on two small interfaces (SQL database, attachment storage) instead of Node's SQLite and file system
+  directly. Nothing changes for users; it is the groundwork for running OpenNote in the browser. The test suite runs on both
+  Node's SQLite and sqlite-wasm.
 
 ## [0.3.1] - 2026-10-19
 
