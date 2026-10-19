@@ -6,6 +6,8 @@ when a `v*` tag is pushed; the section of the tag becomes the release notes.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-19
+
 ### Changed
 - **Layouts for phones and tablets.** The window size now picks one of four layouts instead of a single 900 px switch:
   - wide windows (1280 px and up) keep sidebar, note list and note side by side;
@@ -218,7 +220,8 @@ First public build.
 - Local-only by design: the server listens on loopback only, with Host/Origin checks, a strict Content-Security-Policy and
   sanitized HTML.
 
-[Unreleased]: https://github.com/rldona/OpenNote/compare/v0.4.3...HEAD
+[Unreleased]: https://github.com/rldona/OpenNote/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/rldona/OpenNote/compare/v0.4.3...v0.5.0
 [0.4.3]: https://github.com/rldona/OpenNote/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/rldona/OpenNote/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/rldona/OpenNote/compare/v0.4.0...v0.4.1
