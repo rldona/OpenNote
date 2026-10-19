@@ -9,14 +9,33 @@
 const CLIENT_ID = (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined)?.trim() || '';
 const SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
 const FLAG = 'opennote.gdrive.connected';
+const TOKEN_KEY = 'opennote.gdrive.token';
+const HINT_KEY = 'opennote.gdrive.account';
 const GIS_URL = 'https://accounts.google.com/gsi/client';
+
+/** The account that signed in, so Google does not show the account chooser again when several accounts are open in the browser. */
+const loadHint = (): string | undefined => {
+  try {
+    return localStorage.getItem(HINT_KEY) ?? undefined;
+  } catch {
+    return undefined;
+  }
+};
+const saveHint = (email: string | null) => {
+  try {
+    if (email) localStorage.setItem(HINT_KEY, email);
+    else localStorage.removeItem(HINT_KEY);
+  } catch {
+    /* ignore */
+  }
+};
 
 interface TokenResponse { access_token?: string; expires_in?: number; error?: string }
 interface Gis {
   accounts: {
     oauth2: {
       initTokenClient(c: {
-        client_id: string; scope: string; callback: (r: TokenResponse) => void; error_callback: (e: { type: string }) => void;
+        client_id: string; scope: string; hint?: string; callback: (r: TokenResponse) => void; error_callback: (e: { type: string }) => void;
       }): { requestAccessToken(o: { prompt: '' | 'consent' }): void };
       revoke(token: string, done?: () => void): void;
     };
@@ -24,7 +43,25 @@ interface Gis {
 }
 const gis = () => (window as unknown as { google?: Gis }).google;
 
-let cached: { token: string; expiresAt: number } | null = null;
+/** An access token lasts about an hour. It is kept (scope: the hidden app folder only) so a page reload does not need a new one. */
+function loadToken(): { token: string; expiresAt: number } | null {
+  try {
+    const t = JSON.parse(localStorage.getItem(TOKEN_KEY) ?? 'null') as { token?: unknown; expiresAt?: unknown } | null;
+    return t && typeof t.token === 'string' && typeof t.expiresAt === 'number' && t.expiresAt > Date.now() ? { token: t.token, expiresAt: t.expiresAt } : null;
+  } catch {
+    return null;
+  }
+}
+const saveToken = (t: { token: string; expiresAt: number } | null) => {
+  try {
+    if (t) localStorage.setItem(TOKEN_KEY, JSON.stringify(t));
+    else localStorage.removeItem(TOKEN_KEY);
+  } catch {
+    /* private mode: the token lasts until the tab closes */
+  }
+};
+
+let cached: { token: string; expiresAt: number } | null = loadToken();
 let inflight: Promise<string> | null = null;
 let loading: Promise<void> | null = null;
 
@@ -64,6 +101,18 @@ export function preloadGoogle(): Promise<void> {
   return loading;
 }
 
+/** Learns which Google account this is (Drive's own "about" call, allowed with the same scope) to use as a hint next time. */
+async function rememberAccount(token: string): Promise<void> {
+  if (loadHint()) return;
+  try {
+    const res = await fetch('https://www.googleapis.com/drive/v3/about?fields=user(emailAddress)', { headers: { Authorization: `Bearer ${token}` } });
+    const email = ((await res.json()) as { user?: { emailAddress?: string } }).user?.emailAddress;
+    if (res.ok && email) saveHint(email);
+  } catch {
+    /* only a convenience */
+  }
+}
+
 function request(prompt: '' | 'consent'): Promise<string> {
   return new Promise((resolve, reject) => {
     const g = gis();
@@ -72,9 +121,12 @@ function request(prompt: '' | 'consent'): Promise<string> {
       .initTokenClient({
         client_id: CLIENT_ID,
         scope: SCOPE,
+        hint: loadHint(),
         callback: (r) => {
           if (r.error || !r.access_token) return reject(new Error(r.error ?? 'no token'));
           cached = { token: r.access_token, expiresAt: Date.now() + Math.max(60, (r.expires_in ?? 3600) - 60) * 1000 };
+          saveToken(cached);
+          void rememberAccount(r.access_token);
           resolve(r.access_token);
         },
         error_callback: (e) => reject(new Error(e.type === 'popup_closed' ? 'Sign-in was cancelled' : e.type)),
@@ -135,6 +187,8 @@ export function getToken(force: boolean): Promise<string> {
 export function disconnect(): void {
   const token = cached?.token;
   cached = null;
+  saveToken(null);
+  saveHint(null);
   remember(false);
   if (token) gis()?.accounts.oauth2.revoke(token);
 }

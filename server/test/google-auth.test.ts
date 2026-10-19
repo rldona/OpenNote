@@ -1,20 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-interface Call { prompt: string; scope: string; clientId: string }
+interface Call { prompt: string; scope: string; clientId: string; hint?: string }
 
-function installGoogle(behaviour: (call: Call) => { token?: string; error?: string; expires?: number } | 'popup_closed' | 'popup_failed_to_open') {
+function installGoogle(behaviour: (call: Call) => { token?: string; error?: string; expires?: number } | 'popup_closed' | 'popup_failed_to_open', keep?: Map<string, string>) {
   const calls: Call[] = [];
   const revoked: string[] = [];
-  const store = new Map<string, string>();
+  const store = keep ?? new Map<string, string>();
   const g = globalThis as Record<string, unknown>;
   g.localStorage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v), removeItem: (k: string) => void store.delete(k) };
   g.window = Object.assign(new EventTarget(), {
     google: {
       accounts: {
         oauth2: {
-          initTokenClient: (c: { client_id: string; scope: string; callback: (r: object) => void; error_callback: (e: { type: string }) => void }) => ({
+          initTokenClient: (c: { client_id: string; scope: string; hint?: string; callback: (r: object) => void; error_callback: (e: { type: string }) => void }) => ({
             requestAccessToken: ({ prompt }: { prompt: string }) => {
-              const call = { prompt, scope: c.scope, clientId: c.client_id };
+              const call = { prompt, scope: c.scope, clientId: c.client_id, hint: c.hint };
               calls.push(call);
               const r = behaviour(call);
               queueMicrotask(() => {
@@ -28,6 +28,8 @@ function installGoogle(behaviour: (call: Call) => { token?: string; error?: stri
       },
     },
   });
+  // Drive's "about" call, used to learn which account signed in
+  g.fetch = async () => Response.json({ user: { emailAddress: 'me@example.com' } });
   return { calls, revoked, store };
 }
 
@@ -40,6 +42,7 @@ async function load(clientId = 'test-client.apps.googleusercontent.com') {
 beforeEach(() => vi.useRealTimers());
 afterEach(() => {
   vi.unstubAllEnvs();
+  delete (globalThis as Record<string, unknown>).fetch;
   delete (globalThis as Record<string, unknown>).window;
   delete (globalThis as Record<string, unknown>).localStorage;
 });
@@ -121,5 +124,47 @@ describe('Google sign-in (browser build)', () => {
     expect(g.calls.length).toBe(before + 1);
     expect(seen).toEqual(['opennote:drive-needs-click', 'opennote:drive-renewed']);
     expect(await auth.getToken(false)).toBe('tok-renewed'); // the renewed token is cached
+  });
+
+  it('keeps the access token across page reloads while it is valid, and does not reuse an expired one', async () => {
+    const first = installGoogle(() => ({ token: 'tok-persist' }));
+    const auth = await load();
+    await auth.connect();
+    expect(first.calls.length).toBe(1);
+    // reload the page: new module state, same browser storage, and no request to Google
+    const second = installGoogle(() => ({ token: 'tok-new' }), first.store);
+    const reloaded = await load();
+    expect(await reloaded.getToken(false)).toBe('tok-persist');
+    expect(second.calls.length).toBe(0);
+    // an expired token is dropped
+    const stored = JSON.parse(first.store.get('opennote.gdrive.token')!);
+    first.store.set('opennote.gdrive.token', JSON.stringify({ ...stored, expiresAt: Date.now() - 1000 }));
+    const third = installGoogle(() => ({ token: 'tok-fresh' }), first.store);
+    const expired = await load();
+    expect(await expired.getToken(false)).toBe('tok-fresh');
+    expect(third.calls.length).toBe(1);
+  });
+
+  it('remembers the account and gives it to Google as a hint, so the account chooser is not shown again', async () => {
+    const g = installGoogle(() => ({ token: 'tok-1' }));
+    const auth = await load();
+    await auth.connect();
+    expect(g.calls[0]!.hint).toBeUndefined(); // the very first sign-in does not know the account yet
+    await new Promise((r) => setTimeout(r, 10));
+    expect(g.store.get('opennote.gdrive.account')).toBe('me@example.com');
+    await auth.getToken(true); // a later renewal
+    expect(g.calls[1]).toMatchObject({ prompt: '', hint: 'me@example.com' });
+  });
+
+  it('disconnecting also forgets the stored token and account', async () => {
+    const g = installGoogle(() => ({ token: 'tok-gone' }));
+    const auth = await load();
+    await auth.connect();
+    await new Promise((r) => setTimeout(r, 10));
+    expect(g.store.has('opennote.gdrive.token')).toBe(true);
+    auth.disconnect();
+    expect(g.store.has('opennote.gdrive.token')).toBe(false);
+    expect(g.store.has('opennote.gdrive.account')).toBe(false);
+    expect(g.store.has('opennote.gdrive.connected')).toBe(false);
   });
 });

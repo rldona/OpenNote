@@ -16,6 +16,11 @@ when a `v*` tag is pushed; the section of the tag becomes the release notes.
   remembered.
 
 ### Fixed
+- **Web version: Google's account chooser kept appearing** even after signing in. The access token only lived in memory, so every
+  reload needed a new one, and OpenNote did not tell Google which account to use, so with several Google accounts open in the
+  browser it asked every time. The token (valid about an hour, limited to OpenNote's hidden Drive folder) is now kept in the browser
+  while it is valid, and the account is remembered and passed to Google as a hint. After one more choice of account it should stop
+  asking; disconnecting forgets both.
 - macOS desktop app: in a narrow window, the strip used to drag the window sat in the middle of the note area; it now only exists
   where the note area is at the top of the window.
 
