@@ -1,9 +1,10 @@
 // OpenNote (browser build) service worker.
 //  1. Answers every same-origin /api/... request by asking the tab that owns the local database.
 //  2. Keeps the app files so it opens offline.
-const CACHE = 'opennote-shell-v2';
+const CACHE = 'opennote-shell-v3';
 const API_TIMEOUT_MS = 60_000;
 let ownerId = null;
+let ownerWaiters = [];
 
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (event) => {
@@ -16,14 +17,41 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'owner' && event.source) ownerId = event.source.id;
+  if (event.data && event.data.type === 'owner' && event.source) {
+    ownerId = event.source.id;
+    const waiting = ownerWaiters;
+    ownerWaiters = [];
+    for (const done of waiting) done(ownerId);
+  }
 });
+
+// A service worker is stopped when idle and starts again with empty memory, so "which tab owns the database" is forgotten.
+// Ask the open pages; the owner answers with an 'owner' message.
+async function findOwner() {
+  if (ownerId) {
+    const known = await self.clients.get(ownerId);
+    if (known) return known;
+    ownerId = null;
+  }
+  const pages = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+  if (!pages.length) return null;
+  const answered = new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), 2500);
+    ownerWaiters.push((id) => {
+      clearTimeout(timer);
+      resolve(id);
+    });
+  });
+  for (const page of pages) page.postMessage({ type: 'who-owns-db' });
+  const id = await answered;
+  return id ? self.clients.get(id) : null;
+}
 
 const json = (status, error) =>
   new Response(JSON.stringify({ error }), { status, headers: { 'content-type': 'application/json' } });
 
 async function askOwner(request) {
-  const owner = ownerId ? await self.clients.get(ownerId) : null;
+  const owner = await findOwner();
   if (!owner) return json(503, 'OpenNote is not open in any window. Reload the page.');
   const url = new URL(request.url);
   const body = request.method === 'GET' || request.method === 'HEAD' ? null : await request.arrayBuffer();

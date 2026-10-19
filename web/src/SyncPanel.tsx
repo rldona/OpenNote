@@ -4,7 +4,7 @@ import { locale, t } from './i18n';
 import { connect, disconnect, driveConfigured, isConnected, preloadGoogle } from './standalone/google-auth';
 
 /** Settings and status for folder-based sync. */
-export function SyncPanel({ onClose, onSynced }: { onClose: () => void; onSynced: () => void }) {
+export function SyncPanel({ onClose, onSynced }: { onClose: () => void; onSynced: (result: SyncStatus, autoEnabled: boolean) => void }) {
   const [cfg, setCfg] = useState<SyncConfig | null>(null);
   const [status, setStatus] = useState<SyncStatus | null>(null);
   const [folder, setFolder] = useState('');
@@ -15,19 +15,23 @@ export function SyncPanel({ onClose, onSynced }: { onClose: () => void; onSynced
   const [busy, setBusy] = useState(false);
   const [connected, setConnected] = useState(isConnected());
   const [signing, setSigning] = useState(false);
-  const [note, setToastNote] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     // Load Google's script now so that a later click can open the sign-in popup immediately.
     if (__STANDALONE__ && driveConfigured()) void preloadGoogle().catch(() => undefined);
-    void Promise.all([api.syncConfig(), api.syncStatus()]).then(([c, s]) => {
-      setCfg(c);
-      setStatus(s);
-      setFolder(c.folder ?? '');
-      setIntervalMin(c.intervalMinutes);
-      setDevice(c.deviceName);
-    });
-  }, []);
+    setLoadError(null);
+    Promise.all([api.syncConfig(), api.syncStatus()])
+      .then(([c, s]) => {
+        setCfg(c);
+        setStatus(s);
+        setFolder(c.folder ?? '');
+        setIntervalMin(c.intervalMinutes);
+        setDevice(c.deviceName);
+      })
+      .catch((e: Error) => setLoadError(e.message));
+  }, [attempt]);
 
   const save = async (patch: Parameters<typeof api.setSyncConfig>[0]) => {
     setError(null);
@@ -58,12 +62,13 @@ export function SyncPanel({ onClose, onSynced }: { onClose: () => void; onSynced
       if (!(await saveAll())) return;
       const result = await api.syncNow();
       setStatus(result);
+      if (!result.ok) return; // keep the panel open so the problem is visible
       // First good sync to a remote: from now on keep it in sync without asking again (the user can untick it).
-      if (cfg?.remote && result.ok && !cfg.enabled) {
-        await save({ enabled: true });
-        setToastNote(t('autoSyncOn'));
-      }
-      onSynced();
+      const autoEnabled = !!cfg?.remote && !cfg.enabled;
+      if (autoEnabled) await save({ enabled: true });
+      // It worked: close the panel so it is clear the notes can be used again.
+      onSynced(result, autoEnabled);
+      onClose();
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -84,6 +89,20 @@ export function SyncPanel({ onClose, onSynced }: { onClose: () => void; onSynced
     }
   };
 
+  if (loadError && !cfg) {
+    return (
+      <div className="modal-backdrop" onClick={onClose}>
+        <div className="modal" role="dialog" aria-label={t('syncTitle')} onClick={(e) => e.stopPropagation()}>
+          <h3>{t('syncTitle')}</h3>
+          <p className="error" role="alert">{loadError}</p>
+          <div className="row">
+            <button className="primary" onClick={() => setAttempt((n) => n + 1)}>{t('retry')}</button>
+            <button onClick={onClose}>{t('close')}</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
   if (!cfg) return null;
   const remote = cfg.remote;
   const canSync = remote ? connected && (cfg.hasPassphrase || !!pass) : !!folder.trim();
@@ -123,7 +142,15 @@ export function SyncPanel({ onClose, onSynced }: { onClose: () => void; onSynced
         {cfg.hasPassphrase && !remote && <button onClick={() => void save({ passphrase: null })}>{t('syncPassClear')}</button>}
         <div className="row">
           <label className="inline">
-            <input type="checkbox" checked={cfg.enabled} disabled={remote && !canSync} onChange={(e) => void saveAll().then((ok) => ok && save({ enabled: e.target.checked }))} />
+            <input
+              type="checkbox"
+              checked={cfg.enabled}
+              disabled={remote && !canSync}
+              onChange={(e) => {
+                const on = e.target.checked; // read now: a controlled checkbox is reset by the time the saves finish
+                void saveAll().then((ok) => ok && save({ enabled: on }));
+              }}
+            />
             {t('syncEnabled')}
           </label>
           <label className="inline">
@@ -131,7 +158,6 @@ export function SyncPanel({ onClose, onSynced }: { onClose: () => void; onSynced
             <input type="number" min={1} max={1440} value={interval} style={{ width: 70 }} onChange={(e) => setIntervalMin(Number(e.target.value))} />
           </label>
         </div>
-        {note && <p className="muted" role="status">✓ {note}</p>}
         {error && <p className="error" role="alert">{error}</p>}
         <div className="row">
           <button className="primary" disabled={busy || !canSync} onClick={() => void syncNow()}>

@@ -6,6 +6,14 @@ when a `v*` tag is pushed; the section of the tag becomes the release notes.
 
 ## [Unreleased]
 
+### Fixed
+- Web sync panel: the **Sync automatically** checkbox could not be changed (it saved the value it already had); it now works.
+- Web sync panel: it closes by itself, with a confirmation message, when **Sync now** finishes well; if the sync fails it stays open
+  showing the problem.
+- Web version: the sync panel could stop opening until the page was reloaded (after the browser put the service worker to sleep it
+  forgot which tab holds the notes database). The service worker now finds it again, the panel shows an error with a Retry button
+  instead of staying blank, and when the tab that holds the database is closed another open tab takes over.
+
 ### Added
 - Web version: after the first successful sync to Google Drive, automatic sync turns itself on; it also syncs when you come
   back to the tab or the connection returns.

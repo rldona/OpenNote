@@ -74,6 +74,11 @@ export async function bootStandalone(): Promise<void> {
         (err: Error) => worker.postMessage({ type: 'token', id: m.id, error: err.message } satisfies TokenReply),
       );
     });
+    const announce = () => navigator.serviceWorker.controller?.postMessage({ type: 'owner' });
+    setInterval(announce, 20_000); // a restarted service worker learns who owns the database within seconds
+    navigator.serviceWorker.addEventListener('message', (e: MessageEvent<{ type: string }>) => {
+      if (e.data?.type === 'who-owns-db') announce();
+    });
     navigator.serviceWorker.addEventListener('message', (e: MessageEvent<Omit<ApiRequest, 'id'> & { type: 'request' }>) => {
       const port = e.ports[0];
       if (!port || e.data?.type !== 'request') return;
@@ -97,7 +102,13 @@ export async function bootStandalone(): Promise<void> {
     // The controller can change (service worker update): tell the new one too.
     navigator.serviceWorker.addEventListener('controllerchange', () => navigator.serviceWorker.controller?.postMessage({ type: 'owner' }));
   }
-  // status 'locked': another tab owns the database; requests from this tab are answered through it.
+  // status 'locked': another tab owns the database; requests from this tab are answered through it. When that tab closes,
+  // the lock is released: this tab (or whichever asks first) takes over by reloading, so the others never lose their data.
+  if (status.type === 'locked') {
+    void navigator.locks.request('opennote-db', () => {
+      location.reload();
+    });
+  }
 
   // Downloads from /api links are navigations the service worker cannot answer: fetch them and save the result.
   document.addEventListener('click', (e) => {

@@ -725,7 +725,10 @@ export function App() {
       {showSync && (
         <SyncPanel
           onClose={() => setShowSync(false)}
-          onSynced={() => void Promise.all([refreshList(), refreshMeta()])}
+          onSynced={(r, auto) => {
+            void Promise.all([refreshList(), refreshMeta()]);
+            setToast(`${t('syncDone', { pushed: r.pushed, pulled: r.pulled })}${auto ? ` · ${t('autoSyncOn')}` : ''}`);
+          }}
         />
       )}
 
