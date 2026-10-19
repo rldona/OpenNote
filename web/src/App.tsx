@@ -77,7 +77,7 @@ export function App() {
   const [sidebarWhileNarrow, setSidebarWhileNarrow] = useState(false);
   useEffect(() => setSidebarWhileNarrow(false), [narrow]);
   const [liveSplit, setLiveSplit] = useState<number | null>(null);
-  const split = liveSplit ?? prefs.split;
+  const split = liveSplit ?? prefs.split ?? SPLIT_DEFAULT;
   const appRef = useRef<HTMLDivElement>(null);
   const searchInput = useRef<HTMLInputElement>(null);
   const importInput = useRef<HTMLInputElement>(null);
@@ -410,7 +410,7 @@ export function App() {
   const showSidebar = () => (narrow ? setSidebarWhileNarrow(true) : setPrefs({ sidebarHidden: false }));
   const hideSidebar = () => (narrow ? setSidebarWhileNarrow(false) : setPrefs({ sidebarHidden: true }));
 
-  /** Drag the bar between the list and the editor (stacked layout). Double click or Home: back to 40/60. */
+  /** Drag the bar between the list and the editor (stacked layout). Double click or Home: back to 20/80. */
   const lastSplit = useRef(split);
   const onSplitDown = (e: React.PointerEvent<HTMLDivElement>) => {
     const rect = appRef.current?.getBoundingClientRect();
@@ -434,8 +434,8 @@ export function App() {
   };
   const onSplitKey = (e: React.KeyboardEvent) => {
     const step = e.key === 'ArrowUp' ? -2 : e.key === 'ArrowDown' ? 2 : 0;
-    if (step) setPrefs({ split: clampSplit(prefs.split + step) });
-    else if (e.key === 'Home') setPrefs({ split: SPLIT_DEFAULT });
+    if (step) setPrefs({ split: clampSplit((prefs.split ?? SPLIT_DEFAULT) + step) });
+    else if (e.key === 'Home') setPrefs({ split: null });
     else return;
     e.preventDefault();
   };
@@ -693,7 +693,7 @@ export function App() {
         title={t('splitHint')}
         tabIndex={0}
         onPointerDown={onSplitDown}
-        onDoubleClick={() => setPrefs({ split: SPLIT_DEFAULT })}
+        onDoubleClick={() => setPrefs({ split: null })}
         onKeyDown={onSplitKey}
       />
 
