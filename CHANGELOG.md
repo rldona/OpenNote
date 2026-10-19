@@ -6,6 +6,9 @@ when a `v*` tag is pushed; the section of the tag becomes the release notes.
 
 ## [Unreleased]
 
+### Fixed
+- Web version: a new release now shows up on the next visit instead of up to ten minutes later (the page is revalidated).
+
 ### Added
 - **Sync with Google Drive (web version), built but not switched on yet.** Connect your Google account, choose a passphrase, and
   your notes sync between every browser where you do the same. Notes are encrypted on your device first; Google only stores

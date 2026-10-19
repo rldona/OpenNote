@@ -1,7 +1,7 @@
 // OpenNote (browser build) service worker.
 //  1. Answers every same-origin /api/... request by asking the tab that owns the local database.
 //  2. Keeps the app files so it opens offline.
-const CACHE = 'opennote-shell-v1';
+const CACHE = 'opennote-shell-v2';
 const API_TIMEOUT_MS = 60_000;
 let ownerId = null;
 
@@ -56,7 +56,8 @@ self.addEventListener('fetch', (event) => {
     (async () => {
       const cache = await caches.open(CACHE);
       const cached = await cache.match(request, { ignoreSearch: request.mode === 'navigate' });
-      const network = fetch(request)
+      // Pages lets browsers cache index.html for 10 minutes; revalidate pages so a new version shows up on the next visit.
+      const network = fetch(request.mode === 'navigate' ? new Request(request, { cache: 'no-cache' }) : request)
         .then((res) => {
           if (res.ok) cache.put(request, res.clone());
           return res;
