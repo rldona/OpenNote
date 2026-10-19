@@ -6,6 +6,19 @@ when a `v*` tag is pushed; the section of the tag becomes the release notes.
 
 ## [Unreleased]
 
+### Added
+- **The sidebar hides by itself in a narrow window** (900 px or less) and comes back when the window is wide again. In a narrow
+  window the sidebar button still opens it by hand, and choosing a section closes it again. Your own show/hide choice for wide
+  windows is kept separately.
+- **Resizable split between the note list and the note.** In a narrow window the list sits above the note (40% / 60%). Drag the
+  bar between them to give more room to either; the list can shrink to 15% but never disappears, and the note keeps at least
+  20%. Double-click the bar (or press Home on it) to go back to 40/60; the arrow keys move it in small steps. The size is
+  remembered.
+
+### Fixed
+- macOS desktop app: in a narrow window, the strip used to drag the window sat in the middle of the note area; it now only exists
+  where the note area is at the top of the window.
+
 ## [0.4.2] - 2026-10-19
 
 ### Fixed

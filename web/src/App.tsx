@@ -8,7 +8,7 @@ import { LockedNote } from './Locked';
 import { Icon, type IconName } from './Icon';
 import { PromptHost, askText } from './Prompt';
 import { NotebooksOverview } from './Notebooks';
-import { ACCENTS, usePrefs, type Accent, type SortKey, type Theme } from './prefs';
+import { ACCENTS, SPLIT_DEFAULT, clampSplit, usePrefs, type Accent, type SortKey, type Theme } from './prefs';
 import { isEncryptedHtml, type NoteCipher } from './crypto';
 import { locale, t } from './i18n';
 
@@ -22,6 +22,19 @@ type View =
   | { kind: 'trash' }
   | { kind: 'notebook'; id: string }
   | { kind: 'tag'; name: string };
+
+/** Same breakpoint as the stacked layout in styles.css. */
+const NARROW_QUERY = '(max-width: 900px)';
+function useNarrow(): boolean {
+  const [narrow, setNarrow] = useState(() => window.matchMedia(NARROW_QUERY).matches);
+  useEffect(() => {
+    const m = window.matchMedia(NARROW_QUERY);
+    const on = () => setNarrow(m.matches);
+    m.addEventListener('change', on);
+    return () => m.removeEventListener('change', on);
+  }, []);
+  return narrow;
+}
 
 const same = (a: View, b: View) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -58,6 +71,14 @@ export function App() {
   useEffect(() => setUnlocked(null), [selectedId]);
   const [history, setHistory] = useState<Version[] | null>(null);
   const [prefs, setPrefs] = usePrefs();
+  // Narrow window: the sidebar hides by itself and comes back when the window is wide again. Opening it by hand while narrow
+  // lasts until the window changes size class (or a section is chosen).
+  const narrow = useNarrow();
+  const [sidebarWhileNarrow, setSidebarWhileNarrow] = useState(false);
+  useEffect(() => setSidebarWhileNarrow(false), [narrow]);
+  const [liveSplit, setLiveSplit] = useState<number | null>(null);
+  const split = liveSplit ?? prefs.split;
+  const appRef = useRef<HTMLDivElement>(null);
   const searchInput = useRef<HTMLInputElement>(null);
   const importInput = useRef<HTMLInputElement>(null);
   const importFilesInput = useRef<HTMLInputElement>(null);
@@ -238,6 +259,7 @@ export function App() {
       if (e.key === '/' && !typing && !e.metaKey && !e.ctrlKey) {
         e.preventDefault();
         setPrefs({ sidebarHidden: false, focus: false });
+        setSidebarWhileNarrow(true);
         setTimeout(() => searchInput.current?.focus(), 0);
       } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'n' && !e.shiftKey && !e.altKey) {
         e.preventDefault();
@@ -321,7 +343,7 @@ export function App() {
   ) => (
     <div className={`nav-item ${same(view, v) ? 'active' : ''}`} key={JSON.stringify(v)} style={{ paddingLeft: indent * 14 }}>
       {toggle}
-      <button className="nav-label" onClick={() => { setView(v); select(null); }} aria-current={same(view, v) ? 'page' : undefined}>
+      <button className="nav-label" onClick={() => { setView(v); select(null); if (narrow) setSidebarWhileNarrow(false); }} aria-current={same(view, v) ? 'page' : undefined}>
         <span className="nav-text">{icon && <Icon name={icon} size={16} />}<span>{label}</span></span>
         {count !== undefined && <span className="count">{count}</span>}
       </button>
@@ -384,16 +406,55 @@ export function App() {
     }
   };
 
+  const sidebarOff = prefs.focus || (narrow ? !sidebarWhileNarrow : prefs.sidebarHidden);
+  const showSidebar = () => (narrow ? setSidebarWhileNarrow(true) : setPrefs({ sidebarHidden: false }));
+  const hideSidebar = () => (narrow ? setSidebarWhileNarrow(false) : setPrefs({ sidebarHidden: true }));
+
+  /** Drag the bar between the list and the editor (stacked layout). Double click or Home: back to 40/60. */
+  const lastSplit = useRef(split);
+  const onSplitDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    const rect = appRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const move = (ev: PointerEvent) => {
+      lastSplit.current = clampSplit(((ev.clientY - rect.top) / rect.height) * 100);
+      setLiveSplit(lastSplit.current);
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+      setPrefs({ split: lastSplit.current });
+      setLiveSplit(null);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+  };
+  const onSplitKey = (e: React.KeyboardEvent) => {
+    const step = e.key === 'ArrowUp' ? -2 : e.key === 'ArrowDown' ? 2 : 0;
+    if (step) setPrefs({ split: clampSplit(prefs.split + step) });
+    else if (e.key === 'Home') setPrefs({ split: SPLIT_DEFAULT });
+    else return;
+    e.preventDefault();
+  };
+
   const layout = [
     'app',
     prefs.focus ? 'focus' : '',
-    prefs.sidebarHidden || prefs.focus ? 'no-sidebar' : '',
+    liveSplit !== null ? 'resizing' : '',
+    sidebarOff ? 'no-sidebar' : '',
     overview || prefs.focus ? 'no-list' : '',
     prefs.density === 'compact' ? 'dense' : '',
   ].filter(Boolean).join(' ');
 
   return (
-    <div className={layout}>
+    <div
+      className={layout}
+      ref={appRef}
+      style={{ '--list-row': `${split}fr`, '--editor-row': `${100 - split}fr` } as React.CSSProperties}
+    >
       {serverDown && (
         <div className="offline-banner" role="alert">
           {t('serverDown')}
@@ -406,7 +467,7 @@ export function App() {
             <img src={`${import.meta.env.BASE_URL}icons/icon-192.png`} alt="" width="26" height="26" />
             <span>OpenNote</span>
           </button>
-          <button className="icon-btn" title={t('hideSidebar')} aria-label={t('hideSidebar')} onClick={() => setPrefs({ sidebarHidden: true })}>
+          <button className="icon-btn" title={t('hideSidebar')} aria-label={t('hideSidebar')} onClick={hideSidebar}>
             <Icon name="sidebar" />
           </button>
         </div>
@@ -621,12 +682,27 @@ export function App() {
         )}
       </section>
 
+      <div
+        className={`splitter ${liveSplit !== null ? 'dragging' : ''}`}
+        role="separator"
+        aria-orientation="horizontal"
+        aria-label={t('splitHint')}
+        aria-valuemin={15}
+        aria-valuemax={80}
+        aria-valuenow={Math.round(split)}
+        title={t('splitHint')}
+        tabIndex={0}
+        onPointerDown={onSplitDown}
+        onDoubleClick={() => setPrefs({ split: SPLIT_DEFAULT })}
+        onKeyDown={onSplitKey}
+      />
+
       <main className="editor-pane">
         {prefs.focus && (
           <button className="focus-exit" onClick={() => setPrefs({ focus: false })}>{t('exitFocus')}</button>
         )}
-        {prefs.sidebarHidden && !prefs.focus && (
-          <button className="icon-btn sidebar-show" title={t('showSidebar')} aria-label={t('showSidebar')} onClick={() => setPrefs({ sidebarHidden: false })}>
+        {sidebarOff && !prefs.focus && (
+          <button className="icon-btn sidebar-show" title={t('showSidebar')} aria-label={t('showSidebar')} onClick={showSidebar}>
             <Icon name="sidebar" />
           </button>
         )}

@@ -15,11 +15,19 @@ export interface Prefs {
   sidebarHidden: boolean;
   /** Hides the sidebar and the note list, leaving only the editor. */
   focus: boolean;
+  /** Narrow windows stack the note list above the editor: percentage of the height the list takes. */
+  split: number;
 }
+
+export const SPLIT_DEFAULT = 40;
+/** The list can shrink to 15% (never out of sight) and the editor keeps at least 20%. */
+export const SPLIT_MIN = 15;
+export const SPLIT_MAX = 80;
+export const clampSplit = (n: number) => Math.min(SPLIT_MAX, Math.max(SPLIT_MIN, Number.isFinite(n) ? n : SPLIT_DEFAULT));
 
 export const ACCENTS: Accent[] = ['green', 'blue', 'violet', 'orange', 'pink'];
 
-const defaults: Prefs = { theme: 'system', accent: 'green', density: 'comfortable', sort: 'updated', sidebarHidden: false, focus: false };
+const defaults: Prefs = { theme: 'system', accent: 'green', density: 'comfortable', sort: 'updated', sidebarHidden: false, focus: false, split: SPLIT_DEFAULT };
 const KEY = 'opennote.prefs';
 
 const oneOf = <T extends string>(value: unknown, allowed: readonly T[], fallback: T): T =>
@@ -35,6 +43,7 @@ function load(): Prefs {
       sort: oneOf(raw.sort, ['updated', 'created', 'title'], defaults.sort),
       sidebarHidden: raw.sidebarHidden === true,
       focus: raw.focus === true,
+      split: clampSplit(typeof raw.split === 'number' ? raw.split : SPLIT_DEFAULT),
     };
   } catch {
     return { ...defaults };
