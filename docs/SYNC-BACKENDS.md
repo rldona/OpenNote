@@ -30,7 +30,7 @@ ETag, md5…) so the engine skips files it has already parsed. A shared contract
 | 1a | **SQL driver and attachment storage abstracted** under `NoteStore`; the whole server test suite also runs on sqlite-wasm | **done** |
 | 1b | Run OpenNote **without a local server**, entirely in the browser | **done** (not hosted yet) |
 | 1c | Browser build hosted on GitHub Pages; sync engine and cipher run in the browser | **done** |
-| 2 | `GoogleDriveTransport` + "Sign in with Google" | **built and tested against a simulated Drive; needs the owner's OAuth client id** (see [GOOGLE-DRIVE-SETUP.md](GOOGLE-DRIVE-SETUP.md)) |
+| 2 | `GoogleDriveTransport` + "Sign in with Google" | **built; first real sync to Google Drive worked** (setup: [GOOGLE-DRIVE-SETUP.md](GOOGLE-DRIVE-SETUP.md)); second-device pull still to verify |
 | 3 | Settings UI: add / remove sync destinations; per-destination passphrase; desktop uses the same transport | |
 | 4 | Android: installable PWA first; a Capacitor shell only if the PWA falls short | |
 | 5 | More destinations: WebDAV (Nextcloud…), S3-compatible | |
@@ -119,8 +119,8 @@ Built (`server/src/sync-gdrive.ts`, `web/src/standalone/google-auth.ts`, the syn
 - The engine refuses to write to a remote without a passphrase (`requireEncryption`): Google only ever stores ciphertext.
 - Browser sign-in with Google Identity Services (token flow, `drive.appdata` only). The page gets the token and the database
   worker asks the page for it. The sync panel has a Drive section: connect, passphrase, auto-sync interval, status.
-- **Not verified against the real Google**: that needs the OAuth client id. The first real run may surface differences from the
-  fake (CORS, quotas, token renewal in the browser).
+- **Verified against the real Google** (2026-10-19): connecting an account in Chrome, then a first sync that pushed 3 notes with
+  `ok` status. Not yet verified: a second device pulling them, token renewal after the first hour, large attachments, Firefox/Safari.
 
 Still to do: desktop app (loopback OAuth with a refresh token), a "reconnect" prompt when silent renewal is blocked, Firefox/Safari.
 
