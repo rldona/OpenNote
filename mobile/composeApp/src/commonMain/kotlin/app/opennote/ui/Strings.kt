@@ -92,10 +92,26 @@ class Strings(val es: Boolean) {
     val notSyncing = t("Notes are stored on this device only", "Las notas se guardan solo en este dispositivo")
     val googleDrive = t("Google Drive", "Google Drive")
     val connectDrive = t("Connect Google Drive", "Conectar Google Drive")
-    val driveComingSoon = t(
-        "Signing in with Google from the phone arrives in the next version. Your notes stay on this device until then.",
-        "El inicio de sesión con Google desde el móvil llega en la próxima versión. Hasta entonces, las notas se quedan en este dispositivo.",
+    val driveNotConfigured = t(
+        "Google Drive sync is not set up in this build. Your notes stay on this device.",
+        "La sincronización con Google Drive no está configurada en esta versión. Las notas se quedan en este dispositivo.",
     )
+    val driveExplain = t(
+        "Keeps your notes in step with your other devices through a hidden OpenNote folder in your Google Drive. They are encrypted on this device before they leave it.",
+        "Mantiene tus notas al día con tus otros dispositivos a través de una carpeta oculta de OpenNote en tu Google Drive. Se cifran en este dispositivo antes de salir de él.",
+    )
+    val driveConnected = t("Connected to Google Drive", "Conectado a Google Drive")
+    val disconnect = t("Disconnect", "Desconectar")
+    val confirmDisconnect = t(
+        "Stop syncing this device? Its notes stay here, and the copies in Google Drive are kept.",
+        "¿Dejar de sincronizar este dispositivo? Sus notas se quedan aquí y las copias de Google Drive se conservan.",
+    )
+    val connecting = t("Waiting for Google…", "Esperando a Google…")
+    val passphraseHint = t(
+        "Use the same passphrase as on your other devices. Nobody can recover it, OpenNote included.",
+        "Usa la misma frase que en tus otros dispositivos. Nadie puede recuperarla, tampoco OpenNote.",
+    )
+    val changePassphrase = t("Change passphrase", "Cambiar frase")
     val passphrase = t("Passphrase (encrypts your notes)", "Frase de cifrado (cifra tus notas)")
     val passphraseSet = t("A passphrase is set on this device.", "Este dispositivo tiene una frase de cifrado.")
     val deviceName = t("This device", "Este dispositivo")

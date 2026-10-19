@@ -15,10 +15,16 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.long
 
-/** Where the long-lived Google permission is kept: the Keychain on iOS, the Keystore on Android, memory in tests. */
+/** Where the long-lived Google permission and the sync passphrase are kept: the Keychain on iOS, the Keystore on Android, memory in tests. */
 interface SecretStore {
     fun get(key: String): String?
     fun set(key: String, value: String?)
+}
+
+/** The database's meta table: what the engine used before the platform stores, and still the default off the phones. */
+class MetaSecretStore(private val store: app.opennote.core.NoteStore) : SecretStore {
+    override fun get(key: String) = store.getMeta(key)
+    override fun set(key: String, value: String?) = store.setMeta(key, value)
 }
 
 class MemorySecretStore : SecretStore {

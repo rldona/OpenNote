@@ -46,6 +46,7 @@ import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -99,7 +100,7 @@ val LocalSettled = staticCompositionLocalOf { true }
 fun App() {
     var repo by remember { mutableStateOf<Repo?>(null) }
     LaunchedEffect(Unit) {
-        val opened = Repo.open()
+        val opened = AppCore.repo()
         EditorFiles.attachment = { id -> runCatching { opened.blocking { getAttachmentData(id) to getAttachment(id).mime } }.getOrNull() }
         repo = opened
     }
@@ -128,6 +129,11 @@ fun App() {
                     }
                 }
                 CompositionLocalProvider(LocalApp provides env) {
+                    // A tapped reminder or something shared to the app.
+                    val pending by AppCore.openNote.collectAsState()
+                    LaunchedEffect(pending) {
+                        pending?.let { id -> nav.push(Screen.Note(id)); AppCore.openNote.value = null }
+                    }
                     if (nav.canGoBack) BackHandlerCompat {
                         // After an interactive swipe the screen has already moved: no second slide.
                         if (BackGesture.progress.value != null) nav.skipAnimation.value = true

@@ -23,6 +23,9 @@ targets:
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         CADisableMinimumFrameDurationOnPhone: true
+        # Background sync (Services.ios.kt): a refresh task now and then while the app is closed.
+        UIBackgroundModes: [fetch]
+        BGTaskSchedulerPermittedIdentifiers: [app.opennote.sync]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.opennote

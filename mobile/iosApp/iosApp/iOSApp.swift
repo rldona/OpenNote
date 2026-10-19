@@ -6,6 +6,8 @@ import ComposeApp
 struct iOSApp: App {
     init() {
         IosHooks.shared.configureEditorWebView = { web in removeKeyboardAccessoryBar(web) }
+        // Notifications, background refresh and sync on foreground/background; must run before launch finishes.
+        Services_iosKt.startIosServices()
     }
 
     var body: some Scene {

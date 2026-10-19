@@ -78,6 +78,9 @@ jobs:
       - run: npm run build:embed -w web
       - name: Build the Android app
         working-directory: mobile
+        env:
+          # Google Drive sync (docs/GOOGLE-DRIVE-SETUP.md); without it the app builds with sync not offered.
+          OPENNOTE_GOOGLE_ANDROID_CLIENT_ID: ${{ vars.GOOGLE_ANDROID_CLIENT_ID }}
         run: ./gradlew :androidApp:assembleDebug
 
   # macOS minutes are the expensive ones: the iOS job runs after the cheap core job has passed.
@@ -105,6 +108,8 @@ jobs:
         run: ./gradlew :shared:iosSimulatorArm64Test -PiosTestDevice="${{ steps.sim.outputs.name }}"
       - name: Build the iOS app for the simulator
         working-directory: mobile/iosApp
+        env:
+          OPENNOTE_GOOGLE_IOS_CLIENT_ID: ${{ vars.GOOGLE_IOS_CLIENT_ID }}
         run: |
           brew install xcodegen
           xcodegen generate

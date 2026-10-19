@@ -2,11 +2,43 @@
 
 Kotlin Multiplatform for Android and iOS, as decided in the mobile proposal. Phase 0 (spike) answered whether the core can be
 shared without breaking sync with the TypeScript apps and whether a Compose UI with the web editor embedded holds up;
-phase 1 ported the core; phase 2 built the real interface. Tested on a Mac with Xcode 27.1 (iOS 27 simulators) and an Android 37 emulator; **no real devices
-yet**.
+phase 1 ported the core; phase 2 built the real interface; phase 3 connected it to the platforms. Tested on a Mac with
+Xcode 27.1 (iOS 27 simulators) and an Android 37 emulator; the app also installs and runs on an iPad Pro 11" (2018), but
+**the real-device checks are still to do**.
 
 Versions: Kotlin 2.4.21, Compose Multiplatform 1.12.2, AGP 9.4.1, Gradle 9.6.0, androidx.sqlite (bundled) 2.7.1,
 cryptography-kotlin 0.6.0 (JDK provider on JVM/Android, CryptoKit on iOS), Ksoup 0.2.6, Ktor 3.6.0, kotlinx-datetime 0.8.0.
+
+## Phase 3: the platforms, done (with what is left below)
+
+- **Secrets:** `SecretStore` is the Keychain on iOS (generic passwords, readable after the first unlock so background sync
+  works with the phone locked, never in backups) and an AES-GCM key in the Android Keystore over private preferences. The
+  Google refresh token, the sync passphrase and the key derived from it live there; the derived key is kept per salt, so
+  scrypt runs once per device instead of on every launch. A passphrase stored in the database by earlier builds is moved
+  out at start. `SyncEngine` takes the store as a parameter (the database's meta table by default: tests, JVM).
+- **Google sign-in:** `GoogleAuth` (phase 1) driven by ASWebAuthenticationSession on iOS and Custom Tabs on Android, which
+  comes back through `SignInRedirectActivity`. Client IDs are given to the build (`generateGoogleClients`, from a Gradle
+  property or an environment variable, as CI variables); without one, Settings says sync is not set up in this build.
+  Setup: [GOOGLE-DRIVE-SETUP.md](GOOGLE-DRIVE-SETUP.md). Settings: connect, passphrase, sync now, change passphrase,
+  disconnect, last result and conflicts.
+- **Sync, when:** `AppCore` holds the one open database for the UI, the notifications and the background work. It syncs
+  four seconds after the last edit, when the app comes to the front and when it leaves (iOS grants a background task for
+  it). In the background: a `BGAppRefreshTask` on iOS, WorkManager every hour with network on Android.
+- **Reminders:** a note's reminder is a local notification (iOS: up to 60 at a time, the nearest; Android: alarms, exact
+  when the person allowed them, set again after a restart or an update). Kept in step with the notes after every change and
+  every sync. Tapping one opens the note. Permission is asked when the first reminder is scheduled.
+- **Share to OpenNote (Android):** text, links (kept as the note's source URL), images and PDFs from any app's share sheet
+  become a new note, opened at once.
+
+Checked in the iPhone 17 simulator: the Keychain (save, replace, delete, with a signed build: an unsigned simulator build
+has no Keychain, error -34018, so local simulator builds are now signed ad hoc), the permission prompt, a reminder
+notification arriving and opening its note, the Settings section, and the system sign-in sheet opening for
+accounts.google.com and cancelling cleanly. Android builds.
+
+Not checked yet: a full sign-in and sync against a real Google account (needs the iOS and Android OAuth clients), the
+background refresh (iOS does not run it in the simulator), and anything on Android beyond the build.
+
+Left for later: a Share extension on iOS (it needs an App Group shared with the app), camera and document scanner.
 
 ## Phase 2: the interface, done
 
@@ -81,7 +113,7 @@ the tests in the iOS simulator and the iOS app build. Not run on GitHub yet when
 | iOS: swipe from the left edge did not go back | **Fixed.** An edge-pan gesture on the Compose view (it also works over the editor's WebView) goes back once the finger has travelled far enough or flicked. It is not interactive yet (the screen does not follow the finger). |
 | iOS: the WebView drew over the list during the slide | **Fixed.** The WebView is hidden while a transition runs and shows when it ends. |
 | iOS: WKWebView's own keyboard bar (↑ ↓ ✓) under ours | **Fixed** in the Swift host (`iosApp`), with the usual content-view subclass trick. |
-| iOS: scrypt 1.35 s and a slow first frame in the debug build | **Open.** Needs the release build on a device. Once phones keep the derived key (phase 3, Keychain), scrypt runs once per device. |
+| iOS: scrypt 1.35 s and a slow first frame in the debug build | **Partly.** The derived key is now kept in the Keychain (phase 3), so scrypt runs once per device. The first frame still needs a release build on a device. |
 | Android: soft keyboard and `imePadding` | **Open.** The emulator on this Mac is too loaded to judge (2 GB of RAM, constant swapping, ANRs even for system apps); needs a device. |
 | Android: 60 fps scrolling on a mid-range phone | **Open.** Same reason. |
 
@@ -93,6 +125,7 @@ state drives the native formatting bar, and one WebView is reused between notes.
 
 ## Next
 
-- **Phase 3 (platform):** Keychain/Keystore `SecretStore` and derived-key cache, the system browser for Google sign-in,
-  reminders as local notifications, Share to OpenNote, background sync, camera and document scanner.
+- **Google OAuth clients** for iOS and Android ([GOOGLE-DRIVE-SETUP.md](GOOGLE-DRIVE-SETUP.md)), then a full sign-in and
+  sync between a phone and the desktop.
+- **Phase 4:** iOS Share extension, camera and document scanner, then store builds (signing in CI).
 - Real devices for the open points above.

@@ -28,13 +28,18 @@ cd mobile && ./gradlew :androidApp:assembleDebug
 ```
 
 ```bash
-cd mobile/iosApp && xcodegen generate && xcodebuild -project OpenNote.xcodeproj -scheme OpenNote -destination 'platform=iOS Simulator,name=iPhone 17' -derivedDataPath build CODE_SIGNING_ALLOWED=NO build
+cd mobile/iosApp && xcodegen generate && xcodebuild -project OpenNote.xcodeproj -scheme OpenNote -destination 'platform=iOS Simulator,name=iPhone 17' -derivedDataPath build CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= build
 ```
+
+The simulator build is signed ad hoc: without a signature the Keychain refuses the app (CI builds unsigned, only to check
+that it compiles). Google Drive sync needs the OAuth client IDs given to the build: see
+[docs/GOOGLE-DRIVE-SETUP.md](../docs/GOOGLE-DRIVE-SETUP.md).
 
 The shared tests read the contract fixtures in `server/test/fixtures/sync-v1` and write a location to
 `shared/build/sync-fixtures-kotlin`, which `server/test/sync-fixtures.test.ts` then reads back with the TypeScript engine.
 
 ## Status
 
-Phases 1 (core) and 2 (interface) done; next is phase 3 (Google sign-in, notifications, Share, background sync). Details and open points: [docs/MOBILE-SPIKE.md](../docs/MOBILE-SPIKE.md).
+Phases 1 (core), 2 (interface) and 3 (Keychain/Keystore, Google sign-in, notifications, background sync, Share on Android)
+done; next are the OAuth clients and a real sync between devices, then the iOS Share extension and the camera. Details and open points: [docs/MOBILE-SPIKE.md](../docs/MOBILE-SPIKE.md).
 CI: `.github/workflows/mobile.yml`.

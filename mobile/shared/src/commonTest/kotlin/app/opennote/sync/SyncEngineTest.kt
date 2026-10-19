@@ -169,6 +169,30 @@ class SyncEngineTest {
     }
 
     @Test
+    fun keepsTheDerivedKeyInTheSecretStore() = runTest {
+        val t = MemoryTransport()
+        val secrets = MemorySecretStore()
+        val store = NoteStore(Database.open(":memory:"), MemoryBlobStore())
+        val engine = SyncEngine(store, { t }, "phone", secrets = secrets)
+        engine.setPassphrase("correct horse")
+        assertEquals(null, store.getMeta("sync.passphrase"))
+        store.createNote(NoteInput(title = "a"))
+        assertTrue(engine.run().ok)
+        val saved = secrets.get("sync.key")!!
+        // A new engine (the app restarted) uses the saved key: a wrong one planted under the same salt would fail.
+        val salt = saved.substringBefore(':')
+        secrets.set("sync.key", "$salt:" + kotlin.io.encoding.Base64.encode(ByteArray(32)))
+        val again = SyncEngine(store, { t }, "phone", secrets = secrets)
+        assertContains(again.run().errors.joinToString(), "wrong passphrase")
+        // The bad key is dropped, the passphrase derives it again.
+        assertEquals(null, secrets.get("sync.key"))
+        assertTrue(again.run().ok)
+        assertEquals(saved, secrets.get("sync.key"))
+        engine.setPassphrase("other")
+        assertEquals(null, secrets.get("sync.key"))
+    }
+
+    @Test
     fun refusesWithoutAPassphraseWhenEncryptionIsRequired() = runTest {
         val store = NoteStore(Database.open(":memory:"), MemoryBlobStore())
         val engine = SyncEngine(store, { MemoryTransport() }, "phone", requireEncryption = true)

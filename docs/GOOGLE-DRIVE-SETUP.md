@@ -48,6 +48,25 @@ That needs its own client of a different type:
 In the desktop app, open the sync panel, choose **Google Drive**, press **Connect**, approve in the browser that opens, then set the
 passphrase (the same one as on your other devices) and press **Sync now**. The folder option is still there next to it.
 
+## Android and iOS apps (two more OAuth clients)
+
+The phone apps sign in through the system's sign-in browser (ASWebAuthenticationSession on iOS, Custom Tabs on Android) and
+keep a long-lived token in the Keychain or the Keystore, like the desktop app. Mobile clients have no secret.
+
+1. **iOS**: same project, **Credentials → Create credentials → OAuth client ID**, type **iOS**, name *OpenNote iOS*, bundle ID
+   `app.opennote`. Copy the client ID. Google sends the answer back to the client ID reversed
+   (`com.googleusercontent.apps.<…>:/oauth2redirect`); there is nothing else to register.
+2. **Android**: type **Android**, name *OpenNote Android*, package name `app.opennote` and the SHA-1 of the signing key
+   (`keytool -list -v -keystore ~/.android/debug.keystore -storepass android` for test builds; the release key's for the
+   stores). After creating it, open it and under **Advanced settings** turn on **Enable custom URI scheme**: the app receives
+   the answer at `app.opennote:/oauth2redirect`. Copy the client ID.
+3. Give them to the build: tell Claude, or create the repository variables `GOOGLE_IOS_CLIENT_ID` and
+   `GOOGLE_ANDROID_CLIENT_ID`. For local builds, put `opennote.googleIosClientId=…` and `opennote.googleAndroidClientId=…`
+   in `~/.gradle/gradle.properties`, or set `OPENNOTE_GOOGLE_IOS_CLIENT_ID` / `OPENNOTE_GOOGLE_ANDROID_CLIENT_ID`.
+
+On the phone: **More → Settings → Connect Google Drive**, approve, enter the passphrase of your other devices. The app then
+syncs a few seconds after each change, when it opens and closes, and now and then in the background.
+
 ## Things to know
 
 - **"Testing" mode is enough for personal use** and costs nothing. Google shows an "unverified app" screen the first time; choose

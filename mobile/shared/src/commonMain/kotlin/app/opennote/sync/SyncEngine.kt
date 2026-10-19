@@ -41,6 +41,11 @@ class SyncEngine(
     /** Never write without a passphrase: a remote provider must only ever see ciphertext. */
     private val requireEncryption: Boolean = true,
     private val now: () -> Long = { Clock.System.now().toEpochMilliseconds() },
+    /**
+     * Where the passphrase and the key derived from it are kept: the Keychain or the Keystore in the apps, so scrypt runs
+     * once per device; the database by default (tests, the JVM).
+     */
+    private val secrets: SecretStore = MetaSecretStore(store),
 ) {
     private var running = false
     private val cache = HashMap<String, Pair<String, JsonObject?>>()
@@ -52,9 +57,13 @@ class SyncEngine(
 
     val deviceName: String get() = store.getMeta("device.name") ?: defaultDeviceName
 
-    fun setPassphrase(passphrase: String?) = store.setMeta("sync.passphrase", passphrase?.ifEmpty { null })
+    fun setPassphrase(passphrase: String?) {
+        secrets.set(PASSPHRASE_KEY, passphrase?.ifEmpty { null })
+        secrets.set(DERIVED_KEY, null)
+        lastKey = null
+    }
     fun setDeviceName(name: String) { if (name.isNotBlank()) store.setMeta("device.name", name.trim().take(80)) }
-    val hasPassphrase get() = store.getMeta("sync.passphrase") != null
+    val hasPassphrase get() = secrets.get(PASSPHRASE_KEY) != null
 
     suspend fun run(): SyncStatus {
         if (running) return SyncStatus(running = true)
@@ -83,15 +92,22 @@ class SyncEngine(
         val errors = mutableListOf<String>()
     }
 
+    /** scrypt takes about a second on a phone: the result is kept per salt until the passphrase changes. */
     private fun deriveKey(passphrase: String, salt: ByteArray): ByteArray {
-        val id = "${Base64.encode(salt)}:$passphrase"
+        val id = Base64.encode(salt)
         lastKey?.let { if (it.first == id) return it.second }
-        return SyncCodec.deriveKey(passphrase, salt).also { lastKey = id to it }
+        secrets.get(DERIVED_KEY)?.split(':')?.takeIf { it.size == 2 && it[0] == id }?.let { saved ->
+            runCatching { Base64.decode(saved[1]) }.getOrNull()?.takeIf { it.size == 32 }?.let { return it.also { k -> lastKey = id to k } }
+        }
+        return SyncCodec.deriveKey(passphrase, salt).also {
+            lastKey = id to it
+            secrets.set(DERIVED_KEY, "$id:${Base64.encode(it)}")
+        }
     }
 
     /** Creates the remote structure on first use and returns the codec matching it (docs/SYNC-FORMAT.md 2). */
     private suspend fun openRemote(t: SyncTransport): SyncCodec {
-        val passphrase = store.getMeta("sync.passphrase")
+        val passphrase = secrets.get(PASSPHRASE_KEY)
         if (!t.exists("format.json")) {
             val salt = CryptographyRandom.nextBytes(16)
             val codec = SyncCodec(passphrase?.let { deriveKey(it, salt) })
@@ -118,7 +134,11 @@ class SyncEngine(
         if (passphrase == null) throw SyncError("this sync location is encrypted: enter its passphrase")
         val codec = SyncCodec(deriveKey(passphrase, Base64.decode(format["salt"]!!.jsonPrimitive.content)))
         val check = try { codec.decode(Base64.decode(format["verifier"]!!.jsonPrimitive.content)) } catch (_: SyncError) { null }
-        if (check == null || !constantTimeEquals(check, "opennote".encodeToByteArray())) throw SyncError("wrong passphrase")
+        if (check == null || !constantTimeEquals(check, "opennote".encodeToByteArray())) {
+            secrets.set(DERIVED_KEY, null)
+            lastKey = null
+            throw SyncError("wrong passphrase")
+        }
         return codec
     }
 
@@ -376,5 +396,7 @@ class SyncEngine(
 
     private companion object {
         const val TOMBSTONE_TTL_MS = 90L * 24 * 60 * 60 * 1000
+        const val PASSPHRASE_KEY = "sync.passphrase"
+        const val DERIVED_KEY = "sync.key"
     }
 }
