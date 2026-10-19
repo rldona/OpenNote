@@ -72,6 +72,9 @@ import app.opennote.ui.EditorController
 import app.opennote.ui.EditorEvent
 import app.opennote.ui.EditorState
 import app.opennote.ui.LocalApp
+import androidx.compose.foundation.layout.heightIn
+import app.opennote.ui.TopRowHeight
+import app.opennote.ui.ScreenTop
 import app.opennote.ui.LocalSettled
 import app.opennote.ui.NoteBodyEditor
 import app.opennote.ui.Screen
@@ -125,7 +128,7 @@ fun NoteScreen(id: String) {
 
     Column(Modifier.fillMaxSize().statusBarsPadding().imePadding()) {
         // ---- header
-        Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, top = ScreenTop).heightIn(min = TopRowHeight), verticalAlignment = Alignment.CenterVertically) {
             if (!env.wide || env.nav.stack.size > 1 && env.nav.stack[env.nav.stack.lastIndex - 1] !is Screen.Notes) {
                 IconButton(onClick = { controller.flush(); env.nav.back() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, s.back) }
             }

@@ -184,8 +184,11 @@ fun ScreenContent(screen: Screen, modifier: Modifier = Modifier) {
 private fun CompactLayout(widthDp: Float) {
     Column(Modifier.fillMaxSize()) {
         if (showsBrandHeader) BrandHeader()
-        // Under the header the status bar is already taken care of: screens add no room for it.
-        CompactContent(widthDp, Modifier.weight(1f).then(if (showsBrandHeader) Modifier.consumeWindowInsets(WindowInsets.statusBars) else Modifier))
+        // Under the header the status bar is already taken care of: screens add no room for it, only a little air.
+        CompactContent(
+            widthDp,
+            Modifier.weight(1f).then(if (showsBrandHeader) Modifier.consumeWindowInsets(WindowInsets.statusBars).padding(top = 4.dp) else Modifier),
+        )
     }
 }
 
@@ -216,8 +219,6 @@ fun AppLogo(modifier: Modifier = Modifier) {
         }
     }
 }
-
-private val BrandGreen = Color(0xFF00A82D)
 
 @Composable
 private fun CompactContent(widthDp: Float, modifier: Modifier) {
@@ -283,9 +284,9 @@ private fun BottomBar() {
         NavigationBarItem(tab == Tab.NOTES, { nav.root(Screen.Notes(NoteListKind.All)) }, { Icon(Icons.Filled.List, null) }, label = { Text(s.notes) })
         NavigationBarItem(false, { env.newNote() }, {
             Box(
-                Modifier.background(MaterialTheme.colorScheme.primary, RoundedCornerShape(14.dp)).width(52.dp).height(40.dp),
+                Modifier.background(BrandGreen, RoundedCornerShape(14.dp)).width(52.dp).height(40.dp),
                 contentAlignment = Alignment.Center,
-            ) { Icon(Icons.Filled.Add, s.newNote, tint = MaterialTheme.colorScheme.onPrimary) }
+            ) { Icon(Icons.Filled.Add, s.newNote, tint = Color.White) }
         })
         NavigationBarItem(tab == Tab.SEARCH, { nav.root(Screen.Search) }, { Icon(Icons.Filled.Search, null) }, label = { Text(s.search) })
         NavigationBarItem(tab == Tab.LIBRARY, { nav.root(Screen.Library) }, { Icon(Icons.Filled.Menu, null) }, label = { Text(s.more) })
@@ -307,7 +308,7 @@ private fun WideLayout() {
         Row(Modifier.fillMaxSize().padding(pad)) {
             NavigationRail(header = {
                 // Without the iPad's status bar the rail starts at the very top of the screen.
-                FloatingActionButton(onClick = { env.newNote() }, Modifier.padding(top = 16.dp), containerColor = MaterialTheme.colorScheme.primary) { Icon(Icons.Filled.Add, s.newNote) }
+                FloatingActionButton(onClick = { env.newNote() }, Modifier.padding(top = 16.dp), containerColor = BrandGreen, contentColor = Color.White) { Icon(Icons.Filled.Add, s.newNote) }
             }) {
                 Spacer(Modifier.height(8.dp))
                 NavigationRailItem(tab == Tab.HOME, { nav.root(Screen.Home) }, { Icon(Icons.Filled.Home, null) }, label = { Text(s.home) })

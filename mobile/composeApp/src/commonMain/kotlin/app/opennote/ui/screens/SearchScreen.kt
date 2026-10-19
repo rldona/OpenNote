@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.sp
 import app.opennote.core.ListFilter
 import app.opennote.core.NoteSummary
 import app.opennote.ui.LocalApp
+import app.opennote.ui.ScreenTop
 import app.opennote.ui.NoteListKind
 import app.opennote.ui.Screen
 import app.opennote.ui.SectionTitle
@@ -78,7 +79,7 @@ fun SearchScreen() {
 
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
         OutlinedTextField(
-            q, { q = it }, Modifier.fillMaxWidth().padding(16.dp).focusRequester(focus),
+            q, { q = it }, Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = ScreenTop, bottom = 16.dp).focusRequester(focus),
             leadingIcon = { Icon(Icons.Filled.Search, null) }, placeholder = { Text(s.searchHint) }, singleLine = true, shape = RoundedCornerShape(14.dp),
         )
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {

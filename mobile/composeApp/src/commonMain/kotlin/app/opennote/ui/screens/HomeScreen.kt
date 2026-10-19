@@ -22,6 +22,9 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
+import app.opennote.ui.BrandGreen
+import androidx.compose.ui.graphics.Color
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -41,6 +44,10 @@ import androidx.compose.ui.unit.sp
 import app.opennote.core.ListFilter
 import app.opennote.core.NoteStore
 import app.opennote.ui.LocalApp
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.Box
+import app.opennote.ui.TopRowHeight
+import app.opennote.ui.ScreenTop
 import app.opennote.ui.NoteListKind
 import app.opennote.ui.Screen
 import app.opennote.ui.load
@@ -80,10 +87,15 @@ fun HomeScreen() {
     var draft by remember { mutableStateOf("") }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).statusBarsPadding().padding(bottom = 24.dp)) {
-        Text(greeting, Modifier.padding(start = 20.dp, top = 16.dp, end = 20.dp), fontSize = 28.sp, fontWeight = FontWeight.Bold)
+        Box(Modifier.padding(start = 20.dp, top = ScreenTop, end = 20.dp).heightIn(min = TopRowHeight), contentAlignment = Alignment.CenterStart) {
+            Text(greeting, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+        }
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(draft, { draft = it }, Modifier.weight(1f), placeholder = { Text(s.captureHint) }, singleLine = true, shape = RoundedCornerShape(14.dp))
-            FilledIconButton(onClick = { if (draft.isNotBlank()) { env.newNote(title = draft.trim()); draft = "" } }, Modifier.padding(start = 8.dp)) { Icon(Icons.Filled.Add, s.newNote) }
+            FilledIconButton(
+                onClick = { if (draft.isNotBlank()) { env.newNote(title = draft.trim()); draft = "" } }, Modifier.padding(start = 8.dp),
+                colors = IconButtonDefaults.filledIconButtonColors(containerColor = BrandGreen, contentColor = Color.White),
+            ) { Icon(Icons.Filled.Add, s.newNote) }
         }
         val d = data ?: return@Column
         Card(s.upcomingTasks, onAll = { env.nav.push(Screen.Tasks) }) {

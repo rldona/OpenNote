@@ -46,3 +46,6 @@ fun OpenNoteTheme(mode: ThemeMode, accent: Accent, content: @Composable () -> Un
 
 @Composable
 fun isDarkTheme(mode: ThemeMode) = when (mode) { ThemeMode.SYSTEM -> isSystemInDarkTheme(); ThemeMode.LIGHT -> false; ThemeMode.DARK -> true }
+
+/** The logo's green (mobile/scripts/make-icons.mjs): the new-note buttons and the Android header, whatever the accent. */
+val BrandGreen = Color(0xFF00A82D)

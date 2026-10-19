@@ -43,20 +43,27 @@ fun <T> load(vararg keys: Any?, block: suspend Repo.() -> T): T? {
     return value
 }
 
+/** Every screen starts the same way: a first row at least [TopRowHeight] tall, [ScreenTop] below the top of the screen. */
+val ScreenTop = 8.dp
+val TopRowHeight = 48.dp
+
 /** A screen header: optional back arrow, a large title, an optional subtitle and actions on the right. */
 @Composable
 fun ScreenHeader(title: String, subtitle: String? = null, back: Boolean = false, actions: @Composable () -> Unit = {}) {
     val env = LocalApp.current
-    Row(
-        Modifier.fillMaxWidth().statusBarsPadding().heightIn(min = 64.dp).padding(start = if (back) 4.dp else 20.dp, end = 8.dp, top = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (back) IconButton(onClick = { env.nav.back() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, strings.back) }
-        Column(Modifier.weight(1f)) {
-            Text(title, fontSize = 26.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurface)
-            if (subtitle != null) Text(subtitle, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Column(Modifier.fillMaxWidth().statusBarsPadding().padding(start = if (back) 4.dp else 20.dp, end = 8.dp, top = ScreenTop)) {
+        // The title sits in the first row like every other screen's; a subtitle goes under it and does not move it.
+        Row(Modifier.fillMaxWidth().heightIn(min = TopRowHeight), verticalAlignment = Alignment.CenterVertically) {
+            if (back) IconButton(onClick = { env.nav.back() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, strings.back) }
+            Text(
+                title, Modifier.weight(1f), fontSize = 26.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(0.dp), verticalAlignment = Alignment.CenterVertically) { actions() }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(0.dp), verticalAlignment = Alignment.CenterVertically) { actions() }
+        if (subtitle != null) {
+            Text(subtitle, Modifier.padding(start = if (back) 48.dp else 0.dp), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
 
