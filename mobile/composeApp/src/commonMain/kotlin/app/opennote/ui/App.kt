@@ -7,14 +7,27 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -31,6 +44,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -140,6 +154,10 @@ fun App() {
                         nav.back()
                     }
                     if (wide) WideLayout() else CompactLayout(maxWidth.value)
+                    // The app is drawn edge to edge: lists scrolling up would show through the status bar without this.
+                    if (wide || !showsBrandHeader) {
+                        Box(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars).background(MaterialTheme.colorScheme.background))
+                    }
                 }
             }
         }
@@ -164,21 +182,60 @@ fun ScreenContent(screen: Screen, modifier: Modifier = Modifier) {
 /** Phones: one screen at a time, a bottom bar, and (iOS) the previous screen under the finger while swiping back. */
 @Composable
 private fun CompactLayout(widthDp: Float) {
+    Column(Modifier.fillMaxSize()) {
+        if (showsBrandHeader) BrandHeader()
+        // Under the header the status bar is already taken care of: screens add no room for it.
+        CompactContent(widthDp, Modifier.weight(1f).then(if (showsBrandHeader) Modifier.consumeWindowInsets(WindowInsets.statusBars) else Modifier))
+    }
+}
+
+/** Green band under the status bar with the logo and the app's name (Android phones). */
+@Composable
+private fun BrandHeader() {
+    Row(
+        Modifier.fillMaxWidth().background(BrandGreen).statusBarsPadding().height(48.dp).padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        AppLogo(Modifier.size(26.dp))
+        Spacer(Modifier.width(10.dp))
+        Text("OpenNote", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+/** The app icon (mobile/scripts/make-icons.mjs) in small: a white tile with the three green bars. */
+@Composable
+fun AppLogo(modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val k = size.minDimension / 1024f
+        drawRoundRect(Color.White, cornerRadius = CornerRadius(224 * k))
+        for ((cx, cy, hw, hh) in listOf(listOf(512, 328, 205, 41), listOf(512, 512, 205, 41), listOf(410, 696, 103, 41))) {
+            drawRoundRect(
+                BrandGreen, topLeft = Offset((cx - hw) * k, (cy - hh) * k), size = Size(2 * hw * k, 2 * hh * k),
+                cornerRadius = CornerRadius(24 * k),
+            )
+        }
+    }
+}
+
+private val BrandGreen = Color(0xFF00A82D)
+
+@Composable
+private fun CompactContent(widthDp: Float, modifier: Modifier) {
     val env = LocalApp.current
     val nav = env.nav
     val top = nav.top
     Scaffold(
+        modifier = modifier,
         snackbarHost = { SnackbarHost(env.snackbar) },
-        bottomBar = { if (top !is Screen.Note) BottomBar() },
         // Screens handle the system bars themselves (the note's format bar sits above the home indicator).
         contentWindowInsets = WindowInsets(0),
     ) { pad ->
-        Box(Modifier.fillMaxSize().padding(bottom = pad.calculateBottomPadding())) {
+        Box(Modifier.fillMaxSize().padding(pad)) {
             val progress = BackGesture.progress.value
             val dragging = progress != null && nav.canGoBack
             // Interactive back: the previous screen underneath, the current one following the finger. The current screen
             // keeps its place in the tree, so the editor's WebView under the finger is not re-created (that cancels the touch).
-            if (dragging) ScreenContent(nav.stack[nav.stack.lastIndex - 1], Modifier.fillMaxSize())
+            if (dragging) PhoneScreen(nav.stack[nav.stack.lastIndex - 1])
             AnimatedContent(
                 targetState = top,
                 modifier = Modifier.fillMaxSize()
@@ -194,11 +251,22 @@ private fun CompactLayout(widthDp: Float) {
             ) { screen ->
                 val running = transition.isRunning
                 LaunchedEffect(running) { if (!running) nav.skipAnimation.value = false }
-                CompositionLocalProvider(LocalSettled provides !running) {
-                    ScreenContent(screen, Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background))
-                }
+                CompositionLocalProvider(LocalSettled provides !running) { PhoneScreen(screen) }
             }
         }
+    }
+}
+
+/**
+ * A phone screen with the bottom bar under it, except for a note. The bar belongs to the screen rather than the Scaffold, so
+ * it slides away with the list when a note opens: if it disappeared at once, the area would grow mid-transition and the
+ * incoming note would move vertically too.
+ */
+@Composable
+private fun PhoneScreen(screen: Screen) {
+    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        ScreenContent(screen, Modifier.weight(1f).fillMaxWidth())
+        if (screen !is Screen.Note) BottomBar()
     }
 }
 
@@ -208,7 +276,9 @@ private fun BottomBar() {
     val nav = env.nav
     val tab = nav.tab()
     val s = strings
-    NavigationBar {
+    // On the screen's background with a hairline, like the note's format bar: in the cards' colour it merged with them.
+    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+    NavigationBar(containerColor = MaterialTheme.colorScheme.background) {
         NavigationBarItem(tab == Tab.HOME, { nav.root(Screen.Home) }, { Icon(Icons.Filled.Home, null) }, label = { Text(s.home) })
         NavigationBarItem(tab == Tab.NOTES, { nav.root(Screen.Notes(NoteListKind.All)) }, { Icon(Icons.Filled.List, null) }, label = { Text(s.notes) })
         NavigationBarItem(false, { env.newNote() }, {

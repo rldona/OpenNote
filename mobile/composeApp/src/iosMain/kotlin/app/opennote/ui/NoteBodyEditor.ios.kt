@@ -127,6 +127,20 @@ actual fun NoteBodyEditor(
             EditorWebView.listener = null
         }
     }
+    // Compose puts native views behind its own layer, so what shows through the transparent page is the UIKit container:
+    // give the web view the screen's background instead.
+    val bg = androidx.compose.material3.MaterialTheme.colorScheme.background
+    DisposableEffect(bg) {
+        val color = UIColor(red = bg.red.toDouble(), green = bg.green.toDouble(), blue = bg.blue.toDouble(), alpha = 1.0)
+        webView.backgroundColor = color
+        webView.scrollView.backgroundColor = color
+        onDispose { }
+    }
+    // The theme as soon as the page is up, before any note arrives (and when it changes).
+    DisposableEffect(ready, dark) {
+        if (ready) webView.evaluateJavaScript("OpenNoteEditor.setTheme({dark: $dark})", completionHandler = null)
+        onDispose { }
+    }
     DisposableEffect(ready, noteKey) {
         if (ready) webView.evaluateJavaScript(loadScript(html, dark, editable), completionHandler = null)
         onDispose { }

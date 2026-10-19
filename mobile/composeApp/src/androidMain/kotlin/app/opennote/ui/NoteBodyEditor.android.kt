@@ -101,6 +101,11 @@ actual fun NoteBodyEditor(
         }
     }
     // Load the note once the page is up, and again whenever the screen shows another note.
+    // The theme as soon as the page is up, before any note arrives (and when it changes).
+    DisposableEffect(ready, dark) {
+        if (ready) webView.evaluateJavascript("OpenNoteEditor.setTheme({dark: $dark})", null)
+        onDispose { }
+    }
     DisposableEffect(ready, noteKey) {
         if (ready) webView.evaluateJavascript(loadScript(html, dark, editable), null)
         onDispose { }

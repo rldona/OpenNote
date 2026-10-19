@@ -11,7 +11,8 @@
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
-html, body { margin: 0; background: var(--bg); color: var(--fg); -webkit-text-size-adjust: 100%; }
+/* Transparent: the app draws its own background behind the web view, so there is no white frame before the theme is set. */
+html, body { margin: 0; background: transparent; color: var(--fg); -webkit-text-size-adjust: 100%; }
 body {
   font: 16px/1.6 ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; -webkit-font-smoothing: antialiased;
   padding: 4px max(16px, env(safe-area-inset-right)) 40vh max(16px, env(safe-area-inset-left));

@@ -18,3 +18,4 @@ object AndroidPlatform {
 actual fun appDataDir(): String = AndroidPlatform.context.filesDir.absolutePath
 actual fun deviceLanguage(): String = Locale.getDefault().language
 actual fun deviceModelName(): String = Build.MODEL ?: "Android"
+actual val showsBrandHeader: Boolean = true
