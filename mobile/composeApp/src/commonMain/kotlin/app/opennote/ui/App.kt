@@ -232,10 +232,12 @@ private fun WideLayout() {
     val nav = env.nav
     val tab = nav.tab()
     val s = strings
-    Scaffold(snackbarHost = { SnackbarHost(env.snackbar) }) { pad ->
+    // The rail and each screen keep clear of the system bars themselves (as on phones): no second padding here.
+    Scaffold(snackbarHost = { SnackbarHost(env.snackbar) }, contentWindowInsets = WindowInsets(0)) { pad ->
         Row(Modifier.fillMaxSize().padding(pad)) {
             NavigationRail(header = {
-                FloatingActionButton(onClick = { env.newNote() }, containerColor = MaterialTheme.colorScheme.primary) { Icon(Icons.Filled.Add, s.newNote) }
+                // Without the iPad's status bar the rail starts at the very top of the screen.
+                FloatingActionButton(onClick = { env.newNote() }, Modifier.padding(top = 16.dp), containerColor = MaterialTheme.colorScheme.primary) { Icon(Icons.Filled.Add, s.newNote) }
             }) {
                 Spacer(Modifier.height(8.dp))
                 NavigationRailItem(tab == Tab.HOME, { nav.root(Screen.Home) }, { Icon(Icons.Filled.Home, null) }, label = { Text(s.home) })

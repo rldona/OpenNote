@@ -23,6 +23,9 @@ targets:
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         CADisableMinimumFrameDurationOnPhone: true
+        # Full screen on iPad: no status bar (phones keep it). Set per app, not per screen.
+        UIStatusBarHidden~ipad: true
+        UIViewControllerBasedStatusBarAppearance: false
         # Background sync (Services.ios.kt): a refresh task now and then while the app is closed.
         UIBackgroundModes: [fetch]
         BGTaskSchedulerPermittedIdentifiers: [app.opennote.sync]
