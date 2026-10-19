@@ -2,11 +2,40 @@
 
 Kotlin Multiplatform for Android and iOS, as decided in the mobile proposal. Phase 0 (spike) answered whether the core can be
 shared without breaking sync with the TypeScript apps and whether a Compose UI with the web editor embedded holds up;
-phase 1 ported the core. Tested on a Mac with Xcode 27.1 (iOS 27 simulators) and an Android 37 emulator; **no real devices
+phase 1 ported the core; phase 2 built the real interface. Tested on a Mac with Xcode 27.1 (iOS 27 simulators) and an Android 37 emulator; **no real devices
 yet**.
 
 Versions: Kotlin 2.4.21, Compose Multiplatform 1.12.2, AGP 9.4.1, Gradle 9.6.0, androidx.sqlite (bundled) 2.7.1,
 cryptography-kotlin 0.6.0 (JDK provider on JVM/Android, CryptoKit on iOS), Ksoup 0.2.6, Ktor 3.6.0, kotlinx-datetime 0.8.0.
+
+## Phase 2: the interface, done
+
+Compose screens on top of `NoteStore` (`composeApp/src/commonMain/kotlin/app/opennote/ui`):
+
+- **Navigation** (`Nav.kt`, `App.kt`): a back stack of screens. Phones show a bottom bar (Home, Notes, new note, Search,
+  More) and slide between screens; from 600 dp a navigation rail, and a note opens next to the list or search it came
+  from (list–detail). The editor's WebView is hidden while a transition runs.
+- **Back:** Android's system back; on iOS a pan from the left edge that drags the screen with the previous one underneath
+  and goes back past 35 % of the width or on a flick. The current screen keeps its place in the tree during the drag, so
+  the WebView under the finger is not re-created (that cancelled the touch).
+- **Screens** (`screens/`): Home (greeting, quick capture, tasks due, reminders, pinned, notebooks, recent, tags); note
+  lists with the web's quick filters, sorting, pull to sync and swipe actions (pin/restore, trash/delete); the note
+  (notebook picker, reminder, pin, history, duplicate, save as template, title with autosave, tags, native format bar);
+  search with operators and saved searches; More (lists, notebooks by stack with create/rename/delete, tags, trash);
+  tasks grouped by due date; settings (theme and accent, stored in the database's meta table; Drive shown as coming in
+  phase 3).
+- **Attachments:** notes keep the web's `/api/attachments/<id>` URLs. Android serves them from `shouldInterceptRequest`;
+  on iOS the editor is loaded from an `opennote://app/` scheme handler that serves both the bundled editor and the
+  attachments, under one origin.
+- Interface texts in English and Spanish, by the device's preferred language (on iOS `NSLocale.preferredLanguages`:
+  `currentLocale` only offers the bundle's own localizations).
+
+Checked in the iPhone 17 and iPad Pro 11" simulators: creating and editing notes (title and body reach the database and
+survive a restart), list–detail, More, settings, dark theme including the editor, and the edge-swipe back. Android builds;
+on the emulator only briefly, it is too slow on this Mac (see phase 0).
+
+Testing note: the simulator tool's text input did not reach the simulator's pasteboard; `xcrun simctl pbcopy` followed by
+the system Paste menu works.
 
 ## Phase 1: the core, done
 
@@ -64,8 +93,6 @@ state drives the native formatting bar, and one WebView is reused between notes.
 
 ## Next
 
-- **Phase 2 (UI):** replace the spike screens with the real ones on top of `NoteStore` and `SyncEngine` (lists, Home,
-  search, notebooks, tags, tasks, note screen, settings), adaptive layouts for tablets, interactive back on iOS.
 - **Phase 3 (platform):** Keychain/Keystore `SecretStore` and derived-key cache, the system browser for Google sign-in,
   reminders as local notifications, Share to OpenNote, background sync, camera and document scanner.
 - Real devices for the open points above.

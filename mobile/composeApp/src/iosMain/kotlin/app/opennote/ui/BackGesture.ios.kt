@@ -9,6 +9,8 @@ import kotlinx.cinterop.ObjCAction
 import kotlinx.cinterop.useContents
 import platform.UIKit.UIGestureRecognizer
 import platform.UIKit.UIGestureRecognizerDelegateProtocol
+import platform.UIKit.UIGestureRecognizerStateBegan
+import platform.UIKit.UIGestureRecognizerStateChanged
 import platform.UIKit.UIGestureRecognizerStateEnded
 import platform.UIKit.UIRectEdgeLeft
 import platform.UIKit.UIScreenEdgePanGestureRecognizer
@@ -42,10 +44,19 @@ private class EdgeBack : NSObject(), UIGestureRecognizerDelegateProtocol {
     @OptIn(ExperimentalForeignApi::class)
     @ObjCAction
     fun pan(g: UIScreenEdgePanGestureRecognizer) {
-        if (g.state != UIGestureRecognizerStateEnded) return
+        if (SystemBack.handlers.isEmpty()) return
+        val width = g.view?.bounds?.useContents { size.width } ?: return
         val dx = g.translationInView(g.view).useContents { x }
-        val vx = g.velocityInView(g.view).useContents { x }
-        if (dx > 80.0 || vx > 500.0) SystemBack.dispatch()
+        when (g.state) {
+            // The screen follows the finger (App.kt draws the previous one underneath).
+            UIGestureRecognizerStateBegan, UIGestureRecognizerStateChanged -> BackGesture.progress.value = (dx / width).coerceIn(0.0, 1.0).toFloat()
+            UIGestureRecognizerStateEnded -> {
+                val vx = g.velocityInView(g.view).useContents { x }
+                if (dx > width * 0.35 || vx > 500.0) SystemBack.dispatch()
+                BackGesture.progress.value = null
+            }
+            else -> BackGesture.progress.value = null
+        }
     }
 
     // Let the WebView keep its own gestures (selection, scrolling) alongside this one.

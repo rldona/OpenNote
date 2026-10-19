@@ -32,6 +32,8 @@ kotlin {
             implementation(libs.kotlinx.serialization.json)
             implementation(project(":shared"))
             implementation(libs.compose.backhandler)
+            implementation(libs.compose.icons)
+            implementation(libs.kotlinx.datetime)
         }
         androidMain.dependencies {
             implementation(libs.androidx.webkit)

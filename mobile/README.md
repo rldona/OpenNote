@@ -36,5 +36,5 @@ The shared tests read the contract fixtures in `server/test/fixtures/sync-v1` an
 
 ## Status
 
-Phase 1 (core) done; the UI is still the phase 0 spike. Details and open points: [docs/MOBILE-SPIKE.md](../docs/MOBILE-SPIKE.md).
+Phases 1 (core) and 2 (interface) done; next is phase 3 (Google sign-in, notifications, Share, background sync). Details and open points: [docs/MOBILE-SPIKE.md](../docs/MOBILE-SPIKE.md).
 CI: `.github/workflows/mobile.yml`.

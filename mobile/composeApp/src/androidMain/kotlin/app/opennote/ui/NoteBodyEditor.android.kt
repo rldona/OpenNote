@@ -41,8 +41,15 @@ private object EditorWebView {
             settings.javaScriptEnabled = true
             setBackgroundColor(android.graphics.Color.TRANSPARENT)
             webViewClient = object : WebViewClient() {
-                override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
-                    loader.shouldInterceptRequest(request.url)
+                override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
+                    val path = request.url.path ?: ""
+                    if (path.startsWith("/api/attachments/")) {
+                        // Images and audio inside a note: the same URLs as on the web, served from the app's store.
+                        val (bytes, mime) = EditorFiles.attachment?.invoke(path.removePrefix("/api/attachments/")) ?: return WebResourceResponse("text/plain", null, 404, "Not found", null, null)
+                        return WebResourceResponse(mime, null, bytes.inputStream())
+                    }
+                    return loader.shouldInterceptRequest(request.url)
+                }
                 // Links inside a note never navigate the editor away; the page reports them instead.
                 override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest) = true
             }
@@ -76,6 +83,7 @@ actual fun NoteBodyEditor(
     html: String,
     dark: Boolean,
     visible: Boolean,
+    editable: Boolean,
     controller: EditorController,
     onEvent: (EditorEvent) -> Unit,
     modifier: Modifier,
@@ -94,7 +102,7 @@ actual fun NoteBodyEditor(
     }
     // Load the note once the page is up, and again whenever the screen shows another note.
     DisposableEffect(ready, noteKey) {
-        if (ready) webView.evaluateJavascript(loadScript(html, dark), null)
+        if (ready) webView.evaluateJavascript(loadScript(html, dark, editable), null)
         onDispose { }
     }
     AndroidView(

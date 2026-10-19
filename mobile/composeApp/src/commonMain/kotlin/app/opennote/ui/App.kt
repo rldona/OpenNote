@@ -1,209 +1,263 @@
 package app.opennote.ui
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.material3.ColorScheme
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import app.opennote.core.NoteInput
+import app.opennote.ui.screens.HomeScreen
+import app.opennote.ui.screens.LibraryScreen
+import app.opennote.ui.screens.NoteScreen
+import app.opennote.ui.screens.NotesScreen
+import app.opennote.ui.screens.SearchScreen
+import app.opennote.ui.screens.SettingsScreen
+import app.opennote.ui.screens.TasksScreen
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 
-/**
- * Phase 0 spike (docs: mobile proposal): a list of 1 000 notes to judge scrolling and navigation, and a note screen with a
- * native title, the embedded web editor for the body and a native formatting bar above the keyboard.
- */
-data class SpikeNote(val id: String, val title: String, val snippet: String, val html: String)
+/** Everything screens share: the data, the back stack, messages, the layout class and the appearance. */
+class AppEnv(
+    val repo: Repo,
+    val nav: Navigator,
+    val snackbar: SnackbarHostState,
+    val scope: CoroutineScope,
+    val wide: Boolean,
+    val theme: ThemeMode,
+    val accent: Accent,
+    val setAppearance: (ThemeMode, Accent) -> Unit,
+) {
+    fun message(text: String) { scope.launch { snackbar.showSnackbar(text) } }
 
-private val sample = List(1000) { i ->
-    val words = "Reunión de equipo con el cliente para revisar el presupuesto, el diseño y las tareas del proyecto"
-    SpikeNote(
-        id = "n$i",
-        title = if (i % 7 == 0) "Viaje a Lisboa · día ${i / 7 + 1}" else "Nota de prueba ${i + 1}",
-        snippet = "$words · ${i + 1}",
-        html = "<h2>Agenda</h2><ul data-type=\"taskList\"><li data-type=\"taskItem\" data-checked=\"false\" data-due=\"2026-11-02\"><p>Enviar acta</p></li>" +
-            "<li data-type=\"taskItem\" data-checked=\"true\"><p>Revisar presupuesto</p></li></ul><p>$words.</p>".repeat(1) +
-            "<p>${List(4) { words }.joinToString(". ")}.</p>",
-    )
+    /** Creates a note (in [notebookId], or with [tag], when the list on screen shows one) and opens it. */
+    fun newNote(notebookId: String? = null, tag: String? = null, title: String = "") {
+        scope.launch {
+            val n = repo.write { createNote(NoteInput(notebookId = notebookId, title = title, tags = tag?.let { listOf(it) })) }
+            nav.push(Screen.Note(n.id))
+        }
+    }
 }
 
-private fun scheme(dark: Boolean): ColorScheme = if (dark) {
-    darkColorScheme(primary = Color(0xFF6FD39A), background = Color(0xFF151918), surface = Color(0xFF151918), onSurface = Color(0xFFE6EBE8), surfaceVariant = Color(0xFF1D2220), onSurfaceVariant = Color(0xFF8F9B94), outlineVariant = Color(0xFF2A312E))
-} else {
-    lightColorScheme(primary = Color(0xFF1C8A4E), background = Color.White, surface = Color.White, onSurface = Color(0xFF1B211E), surfaceVariant = Color(0xFFF6F7F5), onSurfaceVariant = Color(0xFF667069), outlineVariant = Color(0xFFE4E7E2))
-}
+val LocalApp = staticCompositionLocalOf<AppEnv> { error("no AppEnv") }
+
+/** Native views (the editor's WebView) are hidden while a screen transition runs: they do not take part in it. */
+val LocalSettled = staticCompositionLocalOf { true }
 
 @Composable
 fun App() {
-    val dark = isSystemInDarkTheme()
-    MaterialTheme(colorScheme = scheme(dark)) {
+    var repo by remember { mutableStateOf<Repo?>(null) }
+    LaunchedEffect(Unit) {
+        val opened = Repo.open()
+        EditorFiles.attachment = { id -> runCatching { opened.blocking { getAttachmentData(id) to getAttachment(id).mime } }.getOrNull() }
+        repo = opened
+    }
+    val r = repo
+    if (r == null) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+        return
+    }
+    var theme by remember { mutableStateOf(ThemeMode.SYSTEM) }
+    var accent by remember { mutableStateOf(Accent.GREEN) }
+    LaunchedEffect(r) {
+        r.read { getMeta("ui.theme") }?.let { v -> ThemeMode.entries.firstOrNull { it.name == v }?.let { theme = it } }
+        r.read { getMeta("ui.accent") }?.let { v -> Accent.entries.firstOrNull { it.name == v }?.let { accent = it } }
+    }
+    val scope = rememberCoroutineScope()
+    val nav = remember { Navigator() }
+    val snackbar = remember { SnackbarHostState() }
+    OpenNoteTheme(theme, accent) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-            val notes = remember { mutableStateListOf(*sample.toTypedArray()) }
-            var open by remember { mutableStateOf<SpikeNote?>(null) }
-            // Kept outside the animated content, so coming back from a note returns to the same place in the list.
-            val listState = rememberLazyListState()
-            AnimatedContent(
-                targetState = open,
-                transitionSpec = {
-                    if (targetState != null) slideInHorizontally { it } togetherWith slideOutHorizontally { -it / 3 }
-                    else slideInHorizontally { -it / 3 } togetherWith slideOutHorizontally { it }
-                },
-            ) { note ->
-                // Native views (the editor's WebView) do not take part in Compose's animations: keep it hidden until the
-                // slide has finished, so it never shows on top of the list.
-                val settled = !transition.isRunning
-                if (note == null) {
-                    NoteList(notes, listState) { open = it }
-                } else {
-                    BackHandlerCompat { open = null }
-                    NoteScreen(note, dark, settled, onBack = { open = null }) { html ->
-                        val i = notes.indexOfFirst { it.id == note.id }
-                        if (i >= 0) notes[i] = notes[i].copy(html = html)
+            BoxWithConstraints(Modifier.fillMaxSize()) {
+                val wide = maxWidth >= 600.dp
+                val env = remember(r, wide, theme, accent) {
+                    AppEnv(r, nav, snackbar, scope, wide, theme, accent) { t, a ->
+                        theme = t; accent = a
+                        scope.launch { r.write { setMeta("ui.theme", t.name); setMeta("ui.accent", a.name) } }
                     }
                 }
+                CompositionLocalProvider(LocalApp provides env) {
+                    if (nav.canGoBack) BackHandlerCompat {
+                        // After an interactive swipe the screen has already moved: no second slide.
+                        if (BackGesture.progress.value != null) nav.skipAnimation.value = true
+                        nav.back()
+                    }
+                    if (wide) WideLayout() else CompactLayout(maxWidth.value)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ScreenContent(screen: Screen, modifier: Modifier = Modifier) {
+    Box(modifier) {
+        when (screen) {
+            Screen.Home -> HomeScreen()
+            is Screen.Notes -> NotesScreen(screen.kind)
+            is Screen.Note -> NoteScreen(screen.id)
+            Screen.Search -> SearchScreen()
+            Screen.Library -> LibraryScreen()
+            Screen.Tasks -> TasksScreen()
+            Screen.Settings -> SettingsScreen()
+        }
+    }
+}
+
+/** Phones: one screen at a time, a bottom bar, and (iOS) the previous screen under the finger while swiping back. */
+@Composable
+private fun CompactLayout(widthDp: Float) {
+    val env = LocalApp.current
+    val nav = env.nav
+    val top = nav.top
+    Scaffold(
+        snackbarHost = { SnackbarHost(env.snackbar) },
+        bottomBar = { if (top !is Screen.Note) BottomBar() },
+        // Screens handle the system bars themselves (the note's format bar sits above the home indicator).
+        contentWindowInsets = WindowInsets(0),
+    ) { pad ->
+        Box(Modifier.fillMaxSize().padding(bottom = pad.calculateBottomPadding())) {
+            val progress = BackGesture.progress.value
+            val dragging = progress != null && nav.canGoBack
+            // Interactive back: the previous screen underneath, the current one following the finger. The current screen
+            // keeps its place in the tree, so the editor's WebView under the finger is not re-created (that cancels the touch).
+            if (dragging) ScreenContent(nav.stack[nav.stack.lastIndex - 1], Modifier.fillMaxSize())
+            AnimatedContent(
+                targetState = top,
+                modifier = Modifier.fillMaxSize()
+                    .offset { IntOffset(((progress ?: 0f) * widthDp * density).toInt(), 0) }
+                    .then(if (dragging) Modifier.shadow(12.dp) else Modifier),
+                transitionSpec = {
+                    when {
+                        nav.skipAnimation.value -> EnterTransition.None togetherWith ExitTransition.None
+                        nav.wentBack.value -> slideInHorizontally { -it / 3 } togetherWith slideOutHorizontally { it }
+                        else -> slideInHorizontally { it } togetherWith slideOutHorizontally { -it / 3 }
+                    }
+                },
+            ) { screen ->
+                val running = transition.isRunning
+                LaunchedEffect(running) { if (!running) nav.skipAnimation.value = false }
+                CompositionLocalProvider(LocalSettled provides !running) {
+                    ScreenContent(screen, Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BottomBar() {
+    val env = LocalApp.current
+    val nav = env.nav
+    val tab = nav.tab()
+    val s = strings
+    NavigationBar {
+        NavigationBarItem(tab == Tab.HOME, { nav.root(Screen.Home) }, { Icon(Icons.Filled.Home, null) }, label = { Text(s.home) })
+        NavigationBarItem(tab == Tab.NOTES, { nav.root(Screen.Notes(NoteListKind.All)) }, { Icon(Icons.Filled.List, null) }, label = { Text(s.notes) })
+        NavigationBarItem(false, { env.newNote() }, {
+            Box(
+                Modifier.background(MaterialTheme.colorScheme.primary, RoundedCornerShape(14.dp)).width(52.dp).height(40.dp),
+                contentAlignment = Alignment.Center,
+            ) { Icon(Icons.Filled.Add, s.newNote, tint = MaterialTheme.colorScheme.onPrimary) }
+        })
+        NavigationBarItem(tab == Tab.SEARCH, { nav.root(Screen.Search) }, { Icon(Icons.Filled.Search, null) }, label = { Text(s.search) })
+        NavigationBarItem(tab == Tab.LIBRARY, { nav.root(Screen.Library) }, { Icon(Icons.Filled.Menu, null) }, label = { Text(s.more) })
+    }
+}
+
+/**
+ * Tablets and large windows: a rail on the left; a note opens next to the list or search it came from (list–detail), and
+ * the other screens use the whole width.
+ */
+@Composable
+private fun WideLayout() {
+    val env = LocalApp.current
+    val nav = env.nav
+    val tab = nav.tab()
+    val s = strings
+    Scaffold(snackbarHost = { SnackbarHost(env.snackbar) }) { pad ->
+        Row(Modifier.fillMaxSize().padding(pad)) {
+            NavigationRail(header = {
+                FloatingActionButton(onClick = { env.newNote() }, containerColor = MaterialTheme.colorScheme.primary) { Icon(Icons.Filled.Add, s.newNote) }
+            }) {
+                Spacer(Modifier.height(8.dp))
+                NavigationRailItem(tab == Tab.HOME, { nav.root(Screen.Home) }, { Icon(Icons.Filled.Home, null) }, label = { Text(s.home) })
+                NavigationRailItem(tab == Tab.NOTES, { nav.root(Screen.Notes(NoteListKind.All)) }, { Icon(Icons.Filled.List, null) }, label = { Text(s.notes) })
+                NavigationRailItem(tab == Tab.SEARCH, { nav.root(Screen.Search) }, { Icon(Icons.Filled.Search, null) }, label = { Text(s.search) })
+                NavigationRailItem(tab == Tab.TASKS, { nav.root(Screen.Tasks) }, { Icon(Icons.Filled.CheckCircle, null) }, label = { Text(s.tasks) })
+                NavigationRailItem(nav.stack.first() == Screen.Library, { nav.root(Screen.Library) }, { Icon(Icons.Filled.Menu, null) }, label = { Text(s.more) })
+                Spacer(Modifier.weight(1f))
+                NavigationRailItem(nav.stack.first() == Screen.Settings, { nav.root(Screen.Settings) }, { Icon(Icons.Filled.Settings, null) }, label = { Text(s.settings) })
+            }
+            VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            val top = nav.top
+            val master = if (top is Screen.Note) nav.stack.getOrNull(nav.stack.lastIndex - 1) else top.takeIf { it is Screen.Notes || it == Screen.Search }
+            if (master != null && (master is Screen.Notes || master == Screen.Search)) {
+                ScreenContent(master, Modifier.width(360.dp).fillMaxHeight())
+                VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                Box(Modifier.weight(1f).fillMaxHeight()) {
+                    if (top is Screen.Note) {
+                        ScreenContent(top, Modifier.fillMaxSize())
+                    } else {
+                        Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(s.selectNote, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            } else {
+                ScreenContent(top, Modifier.weight(1f).fillMaxHeight())
             }
         }
     }
 }
-
-@Composable
-private fun NoteList(notes: List<SpikeNote>, listState: LazyListState, onOpen: (SpikeNote) -> Unit) {
-    Column(Modifier.fillMaxSize().statusBarsPadding()) {
-        Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 8.dp)) {
-            Text("Todas las notas", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-            Text("${notes.size} notas", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 24.dp)) {
-            items(notes, key = { it.id }) { n ->
-                Column(
-                    Modifier.fillMaxWidth().clickable { onOpen(n) }.padding(horizontal = 20.dp, vertical = 12.dp),
-                ) {
-                    Text(n.title, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(n.snippet, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                }
-                HorizontalDivider(Modifier.padding(start = 20.dp), color = MaterialTheme.colorScheme.outlineVariant)
-            }
-        }
-    }
-}
-
-@Composable
-private fun NoteScreen(note: SpikeNote, dark: Boolean, settled: Boolean, onBack: () -> Unit, onChange: (String) -> Unit) {
-    val controller = remember { EditorController() }
-    var state by remember { mutableStateOf(EditorState()) }
-    var title by remember(note.id) { mutableStateOf(note.title) }
-    Column(Modifier.fillMaxSize().statusBarsPadding().imePadding()) {
-        Row(Modifier.fillMaxWidth().height(52.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("‹", fontSize = 30.sp, color = MaterialTheme.colorScheme.primary, modifier = Modifier.clip(RoundedCornerShape(10.dp)).clickable { controller.flush(); onBack() }.padding(horizontal = 12.dp))
-            Text("Trabajo", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        BasicTextField(
-            value = title,
-            onValueChange = { title = it },
-            textStyle = TextStyle(fontSize = 26.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface),
-            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-        )
-        NoteBodyEditor(
-            noteKey = note.id,
-            html = note.html,
-            dark = dark,
-            visible = settled,
-            controller = controller,
-            onEvent = { e ->
-                when (e) {
-                    is EditorEvent.State -> state = e.state
-                    is EditorEvent.Change -> onChange(e.html)
-                    else -> Unit
-                }
-            },
-            modifier = Modifier.weight(1f).fillMaxWidth(),
-        )
-        FormatBar(state, controller)
-    }
-}
-
-/** The native formatting bar, one row that scrolls sideways, kept right above the keyboard. */
-@Composable
-private fun FormatBar(state: EditorState, controller: EditorController) {
-    val items = listOf(
-        Triple("Aa", state.heading1 || state.heading2, "heading2"),
-        Triple("B", state.bold, "bold"),
-        Triple("I", state.italic, "italic"),
-        Triple("U", state.underline, "underline"),
-        Triple("•", state.bulletList, "bulletList"),
-        Triple("1.", state.orderedList, "orderedList"),
-        Triple("☑", state.taskList, "taskList"),
-        Triple("❝", state.blockquote, "blockquote"),
-        Triple("▦", false, "table"),
-        Triple("↶", false, "undo"),
-        Triple("↷", false, "redo"),
-    )
-    Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant).navigationBarsPadding()) {
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        Row(
-            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 6.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            for ((label, active, command) in items) {
-                Box(
-                    Modifier.size(width = 46.dp, height = 44.dp).clip(RoundedCornerShape(10.dp))
-                        .background(if (active) MaterialTheme.colorScheme.primary.copy(alpha = 0.16f) else Color.Transparent)
-                        .clickable { controller.exec(command) },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(label, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
-                }
-            }
-            Spacer(Modifier.width(8.dp))
-        }
-    }
-}
-
-/** System back: the back gesture or button on Android, the swipe from the left edge on iOS (see MainViewController). */
-@Composable
-expect fun BackHandlerCompat(onBack: () -> Unit)

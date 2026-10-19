@@ -18,6 +18,16 @@ import platform.WebKit.WKUserContentController
 import platform.WebKit.WKWebView
 import platform.WebKit.WKWebViewConfiguration
 import platform.darwin.NSObject
+import kotlinx.cinterop.ObjCSignatureOverride
+import kotlinx.cinterop.addressOf
+import kotlinx.cinterop.usePinned
+import platform.Foundation.NSData
+import platform.Foundation.NSHTTPURLResponse
+import platform.Foundation.NSURL
+import platform.Foundation.NSURLRequest
+import platform.Foundation.create
+import platform.WebKit.WKURLSchemeHandlerProtocol
+import platform.WebKit.WKURLSchemeTaskProtocol
 
 /** Messages from the page arrive through `window.webkit.messageHandlers.opennote`. */
 private class EditorMessages : NSObject(), WKScriptMessageHandlerProtocol {
@@ -28,23 +38,62 @@ private class EditorMessages : NSObject(), WKScriptMessageHandlerProtocol {
     }
 }
 
+/**
+ * `opennote://app/…`: the editor page and its files from the app bundle (editor/, copied from web/dist-embed), and
+ * `/api/attachments/<id>` from the store, so notes reference attachments with the same URLs as on the web.
+ */
+@OptIn(ExperimentalForeignApi::class)
+private class AppScheme : NSObject(), WKURLSchemeHandlerProtocol {
+    @ObjCSignatureOverride
+    override fun webView(webView: WKWebView, startURLSchemeTask: WKURLSchemeTaskProtocol) {
+        val url = startURLSchemeTask.request.URL ?: return
+        val path = url.path ?: "/"
+        val found: Pair<ByteArray, String>? = if (path.startsWith("/api/attachments/")) {
+            EditorFiles.attachment?.invoke(path.removePrefix("/api/attachments/"))
+        } else {
+            val name = path.trimStart('/').ifEmpty { "index.html" }
+            NSBundle.mainBundle.pathForResource(name.substringBeforeLast('.'), name.substringAfterLast('.'), "editor")
+                ?.let { NSData.create(contentsOfFile = it) }?.let { it.toByteArray() to EditorFiles.mimeOf(name) }
+        }
+        val (bytes, mime) = found ?: (ByteArray(0) to "text/plain")
+        val response = NSHTTPURLResponse(uRL = url, statusCode = if (found != null) 200 else 404, HTTPVersion = "HTTP/1.1", headerFields = mapOf<Any?, Any?>("Content-Type" to mime))
+        startURLSchemeTask.didReceiveResponse(response)
+        startURLSchemeTask.didReceiveData(bytes.toNSData())
+        startURLSchemeTask.didFinish()
+    }
+
+    @ObjCSignatureOverride
+    override fun webView(webView: WKWebView, stopURLSchemeTask: WKURLSchemeTaskProtocol) {}
+}
+
+@OptIn(ExperimentalForeignApi::class)
+private fun ByteArray.toNSData(): NSData = if (isEmpty()) NSData() else usePinned { NSData.create(bytes = it.addressOf(0), length = size.toULong()) }
+
+@OptIn(ExperimentalForeignApi::class)
+private fun NSData.toByteArray(): ByteArray {
+    val out = ByteArray(length.toInt())
+    if (out.isNotEmpty()) out.usePinned { platform.posix.memcpy(it.addressOf(0), bytes, length) }
+    return out
+}
+
 /** One WKWebView for the whole app, loaded once from the app bundle (editor/, copied from web/dist-embed). */
 private object EditorWebView {
     val ready = mutableStateOf(false)
     var listener: ((EditorEvent) -> Unit)? = null
     private val messages = EditorMessages()
+    private val scheme = AppScheme()
 
     @OptIn(ExperimentalForeignApi::class)
     val view: WKWebView by lazy {
         val config = WKWebViewConfiguration()
         config.userContentController.addScriptMessageHandler(messages, "opennote")
+        config.setURLSchemeHandler(scheme, forURLScheme = "opennote")
         WKWebView(frame = CGRectZero.readValue(), configuration = config).apply {
             opaque = false
             backgroundColor = UIColor.clearColor
             scrollView.backgroundColor = UIColor.clearColor
-            val page = NSBundle.mainBundle.URLForResource("index", "html", "editor")
-                ?: error("editor/index.html is missing from the app bundle")
-            loadFileURL(page, allowingReadAccessToURL = page.URLByDeletingLastPathComponent!!)
+            // Served by AppScheme: the page from the bundle, attachments from the store, all under one origin.
+            loadRequest(NSURLRequest(uRL = NSURL(string = "opennote://app/index.html")))
             IosHooks.configureEditorWebView?.invoke(this)
         }
     }
@@ -62,6 +111,7 @@ actual fun NoteBodyEditor(
     html: String,
     dark: Boolean,
     visible: Boolean,
+    editable: Boolean,
     controller: EditorController,
     onEvent: (EditorEvent) -> Unit,
     modifier: Modifier,
@@ -78,7 +128,7 @@ actual fun NoteBodyEditor(
         }
     }
     DisposableEffect(ready, noteKey) {
-        if (ready) webView.evaluateJavaScript(loadScript(html, dark), completionHandler = null)
+        if (ready) webView.evaluateJavaScript(loadScript(html, dark, editable), completionHandler = null)
         onDispose { }
     }
     UIKitView(

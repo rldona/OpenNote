@@ -65,11 +65,24 @@ expect fun NoteBodyEditor(
     html: String,
     dark: Boolean,
     visible: Boolean,
+    editable: Boolean,
     controller: EditorController,
     onEvent: (EditorEvent) -> Unit,
     modifier: Modifier = Modifier,
 )
 
+/**
+ * What the editor page may load besides itself: attachments (`/api/attachments/<id>`, the same URLs as on the web) come from
+ * the app's store. Set by the app once the store is open; called on the WebView's own threads.
+ */
+object EditorFiles {
+    var attachment: ((id: String) -> Pair<ByteArray, String>?)? = null
+
+    fun mimeOf(name: String) = when (name.substringAfterLast('.', "").lowercase()) {
+        "html" -> "text/html"; "js" -> "text/javascript"; "css" -> "text/css"; "svg" -> "image/svg+xml"; else -> "application/octet-stream"
+    }
+}
+
 /** The script that loads a note once the page is ready. */
-internal fun loadScript(html: String, dark: Boolean) =
-    "OpenNoteEditor.setTheme({dark: $dark}); OpenNoteEditor.load({html: ${jsString(html)}, editable: true, placeholder: '…'});"
+internal fun loadScript(html: String, dark: Boolean, editable: Boolean) =
+    "OpenNoteEditor.setTheme({dark: $dark}); OpenNoteEditor.load({html: ${jsString(html)}, editable: $editable, placeholder: '…'});"
