@@ -5,10 +5,16 @@ import { describe, expect, it } from 'vitest';
 import { openTestDb } from './helpers.js';
 import { NoteStore } from '../src/store.js';
 import { SyncEngine } from '../src/sync.js';
+import { GoogleDriveTransport } from '../src/sync-gdrive.js';
+import { createFakeDrive } from './fake-drive.js';
 import { FolderTransport, MemoryTransport, checkPath, type SyncTransport } from '../src/sync-transport.js';
+
+const driveTransport = (drive = createFakeDrive()) =>
+  new GoogleDriveTransport({ fetch: drive.fetch, sleep: async () => undefined, getToken: async () => 'good' });
 
 const impls: [string, () => SyncTransport][] = [
   ['memory', () => new MemoryTransport()],
+  ['google drive (fake)', () => driveTransport()],
   ['folder', () => new FolderTransport(mkdtempSync(join(tmpdir(), 'opennote-tr-')))],
 ];
 
@@ -54,17 +60,23 @@ describe.each(impls)('transport contract: %s', (_name, make) => {
   });
 });
 
-function device(name: string, remote: SyncTransport, passphrase?: string) {
+function device(name: string, remote: () => SyncTransport, passphrase?: string) {
   const dataDir = mkdtempSync(join(tmpdir(), `opennote-dev-${name}-`));
   const store = new NoteStore(openTestDb(), join(dataDir, 'attachments'));
-  const engine = new SyncEngine(store, { dataDir, deviceName: name, transport: () => remote });
+  const engine = new SyncEngine(store, { dataDir, deviceName: name, transport: remote });
   if (passphrase) engine.setConfig({ passphrase });
   return { store, run: () => engine.run() };
 }
 
-describe('sync engine over a transport that is not a folder', () => {
+/** A shared remote: every sync run gets a fresh transport object (as in real use), all over the same stored data. */
+const remotes: [string, () => () => SyncTransport][] = [
+  ['memory', () => { const r = new MemoryTransport(); return () => r; }],
+  ['google drive (fake)', () => { const d = createFakeDrive(); return () => driveTransport(d); }],
+];
+
+describe.each(remotes)('sync engine over a transport that is not a folder: %s', (_name, newRemote) => {
   it('converges three devices, including attachments, edits, deletes and conflicts', async () => {
-    const remote = new MemoryTransport();
+    const remote = newRemote();
     const a = device('A', remote);
     const b = device('B', remote);
     const c = device('C', remote);
@@ -104,17 +116,19 @@ describe('sync engine over a transport that is not a folder', () => {
   });
 
   it('encrypts everything it stores, and a wrong passphrase is rejected', async () => {
-    const remote = new MemoryTransport();
+    const remote = newRemote();
     const a = device('A', remote, 'correct horse');
     a.store.createNote({ title: 'Secret title', content: '<p>Secret body</p>' });
     expect((await a.run()).ok).toBe(true);
 
+    const raw0 = remote(); // a fresh view of what is stored remotely
     const files = [
-      ...(await remote.list('notes')).map((e) => e.name),
+      ...(await raw0.list('notes')).map((e) => e.name),
     ];
+    expect(files.length).toBeGreaterThan(0);
     for (const id of files) {
-      for (const f of await remote.list(`notes/${id}`)) {
-        const raw = (await remote.read(`notes/${id}/${f.name}`))!.toString('latin1');
+      for (const f of await raw0.list(`notes/${id}`)) {
+        const raw = (await raw0.read(`notes/${id}/${f.name}`))!.toString('latin1');
         expect(raw).not.toContain('Secret');
       }
     }
@@ -125,5 +139,23 @@ describe('sync engine over a transport that is not a folder', () => {
     const friend = device('B', remote, 'correct horse');
     expect((await friend.run()).ok).toBe(true);
     expect(friend.store.listNotes({}).map((x) => x.title)).toEqual(['Secret title']);
+  });
+});
+
+describe('remote destinations require encryption', () => {
+  it('refuses to sync without a passphrase, and says why', async () => {
+    const remote = new MemoryTransport();
+    const dataDir = mkdtempSync(join(tmpdir(), 'opennote-req-'));
+    const store = new NoteStore(openTestDb(), join(dataDir, 'attachments'));
+    const engine = new SyncEngine(store, { dataDir, transport: () => remote, remoteLabel: 'Google Drive', requireEncryption: true });
+    expect(engine.getConfig()).toMatchObject({ remote: true, remoteLabel: 'Google Drive', requireEncryption: true, folder: null });
+    engine.setConfig({ enabled: true }); // no folder needed for a remote
+    const refused = await engine.run().catch((e: Error) => e);
+    expect(refused).toBeInstanceOf(Error);
+    expect((refused as Error).message).toMatch(/Google Drive only stores encrypted data/);
+    expect(await remote.list('')).toEqual([]); // nothing was written
+    engine.setConfig({ passphrase: 'a long passphrase' });
+    expect((await engine.run()).ok).toBe(true);
+    expect((await remote.list('')).map((e) => e.name)).toContain('format.json');
   });
 });

@@ -18,3 +18,7 @@ export interface ApiResponse {
 }
 
 export type WorkerStatus = { type: 'ready' } | { type: 'locked' } | { type: 'failed'; message: string };
+
+/** The worker needs an access token for Google Drive, which only the page can get. */
+export interface TokenRequest { type: 'token-request'; id: number; force: boolean }
+export interface TokenReply { type: 'token'; id: number; token?: string; error?: string }

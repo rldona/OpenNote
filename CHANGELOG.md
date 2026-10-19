@@ -7,6 +7,10 @@ when a `v*` tag is pushed; the section of the tag becomes the release notes.
 ## [Unreleased]
 
 ### Added
+- **Sync with Google Drive (web version), built but not switched on yet.** Connect your Google account, choose a passphrase, and
+  your notes sync between every browser where you do the same. Notes are encrypted on your device first; Google only stores
+  unreadable files in a hidden app folder of your Drive that no other app can see. It needs a one-time Google Cloud setup by the
+  project owner: see `docs/GOOGLE-DRIVE-SETUP.md`.
 - **Web version at https://rldona.github.io/OpenNote/** (GitHub Pages): the whole app in your browser, with no server and no
   account. Your notes are stored in that browser, on that device. Installable as an app from the browser menu. It does not sync
   yet; that is the next step.

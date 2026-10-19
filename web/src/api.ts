@@ -8,7 +8,7 @@ export interface Note extends NoteSummary { content: string; sourceUrl: string |
 export interface TagCount { name: string; count: number; total: number; virtual: boolean }
 export interface SavedSearch { id: string; name: string; query: string }
 export interface Task { noteId: string; noteTitle: string; notebookId: string; idx: number; text: string; checked: boolean; due: string | null }
-export interface SyncConfig { folder: string | null; enabled: boolean; intervalMinutes: number; hasPassphrase: boolean; deviceName: string }
+export interface SyncConfig { folder: string | null; remote: boolean; remoteLabel: string | null; requireEncryption: boolean; enabled: boolean; intervalMinutes: number; hasPassphrase: boolean; deviceName: string }
 export interface SyncStatus {
   running: boolean; lastRunAt: number | null; ok: boolean; pushed: number; pulled: number; deleted: number;
   conflicts: { noteId: string; title: string; at: number }[]; errors: string[];

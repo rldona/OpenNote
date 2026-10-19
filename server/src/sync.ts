@@ -67,6 +67,12 @@ export interface SyncStatus {
 
 export interface SyncConfig {
   folder: string | null;
+  /** True when sync goes to a built-in remote (e.g. Google Drive in the browser build) instead of a folder. */
+  remote: boolean;
+  /** Name of that remote, for the interface. */
+  remoteLabel: string | null;
+  /** The remote refuses to store anything that is not encrypted, so a passphrase is mandatory. */
+  requireEncryption: boolean;
   enabled: boolean;
   intervalMinutes: number;
   encrypted: boolean;
@@ -180,7 +186,13 @@ export class SyncEngine {
 
   constructor(
     private readonly store: NoteStore,
-    private readonly opts: { dataDir: string; deviceName?: string; /** Replaces the configured folder (tests, other backends). */ transport?: () => SyncTransport },
+    private readonly opts: { dataDir: string; deviceName?: string;
+      /** Replaces the configured folder: tests, and remotes such as Google Drive. Called for every run. */
+      transport?: () => SyncTransport;
+      remoteLabel?: string;
+      /** Never write to the remote without a passphrase (the provider must only ever see ciphertext). */
+      requireEncryption?: boolean;
+    },
   ) {
     const saved = store.getMeta('sync.status');
     if (saved) this.status = { ...this.status, ...JSON.parse(saved), running: false };
@@ -205,6 +217,9 @@ export class SyncEngine {
     const passphrase = this.store.getMeta('sync.passphrase');
     return {
       folder: this.store.getMeta('sync.folder'),
+      remote: !!this.opts.transport,
+      remoteLabel: this.opts.remoteLabel ?? null,
+      requireEncryption: !!this.opts.requireEncryption,
       enabled: this.store.getMeta('sync.enabled') === '1',
       intervalMinutes: Number(this.store.getMeta('sync.interval') ?? 5),
       encrypted: !!passphrase,
@@ -219,7 +234,7 @@ export class SyncEngine {
       else this.store.setMeta('sync.folder', this.validateFolder(patch.folder));
     }
     if (patch.enabled !== undefined) {
-      if (patch.enabled && !(patch.folder ?? this.store.getMeta('sync.folder'))) throw new SyncError('choose a folder first');
+      if (patch.enabled && !this.opts.transport && !(patch.folder ?? this.store.getMeta('sync.folder'))) throw new SyncError('choose a folder first');
       this.store.setMeta('sync.enabled', patch.enabled ? '1' : '0');
     }
     if (patch.intervalMinutes !== undefined) {
@@ -250,6 +265,9 @@ export class SyncEngine {
     if (this.running) return this.getStatus();
     const folder = this.store.getMeta('sync.folder');
     if (!folder && !this.opts.transport) throw new SyncError('no sync folder configured');
+    if (this.opts.requireEncryption && !this.store.getMeta('sync.passphrase')) {
+      throw new SyncError(`${this.opts.remoteLabel ?? 'This destination'} only stores encrypted data: set a passphrase first`);
+    }
     this.running = true;
     const stats = { pushed: 0, pulled: 0, deleted: 0, conflicts: [] as SyncConflict[], errors: [] as string[] };
     let fatal: string | null = null;
@@ -565,7 +583,7 @@ export function startSyncScheduler(engine: SyncEngine, log: (msg: string) => voi
   let stopped = false;
   const tick = async () => {
     const cfg = engine.getConfig();
-    if (cfg.enabled && cfg.folder) {
+    if (cfg.enabled && (cfg.folder || cfg.remote)) {
       const s = await engine.run().catch((e) => ({ ok: false, errors: [String(e)] }) as Partial<SyncStatus>);
       if (!s.ok) log(`sync: ${(s.errors ?? []).join('; ')}`);
     }

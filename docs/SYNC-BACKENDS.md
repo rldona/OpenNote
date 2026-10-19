@@ -30,7 +30,7 @@ ETag, md5…) so the engine skips files it has already parsed. A shared contract
 | 1a | **SQL driver and attachment storage abstracted** under `NoteStore`; the whole server test suite also runs on sqlite-wasm | **done** |
 | 1b | Run OpenNote **without a local server**, entirely in the browser | **done** (not hosted yet) |
 | 1c | Browser build hosted on GitHub Pages; sync engine and cipher run in the browser | **done** |
-| 2 | `GoogleDriveTransport` + "Sign in with Google" | |
+| 2 | `GoogleDriveTransport` + "Sign in with Google" | **built and tested against a simulated Drive; needs the owner's OAuth client id** (see [GOOGLE-DRIVE-SETUP.md](GOOGLE-DRIVE-SETUP.md)) |
 | 3 | Settings UI: add / remove sync destinations; per-destination passphrase; desktop uses the same transport | |
 | 4 | Android: installable PWA first; a Capacitor shell only if the PWA falls short | |
 | 5 | More destinations: WebDAV (Nextcloud…), S3-compatible | |
@@ -107,7 +107,24 @@ browser:
   (`linkedom`, `fast-xml-parser`, `turndown`, `marked` and `fflate` all run in browsers).
 - Hosting: the browser build is static files, so GitHub Pages is enough (cost: zero). It is also the OAuth origin.
 
-### Phase 2: Google Drive
+### Phase 2 status
+
+Built (`server/src/sync-gdrive.ts`, `web/src/standalone/google-auth.ts`, the sync panel):
+
+- `GoogleDriveTransport`: Drive API v3 over `fetch`, appDataFolder only. One paginated listing per run builds an index of file
+  names (the full path is the file name); changed files are found by md5Checksum; resumable upload above 5 MB; a new token after a
+  401, backoff on 429/5xx; the oldest of two same-named files wins (`writeIfAbsent`).
+- Tested against `test/fake-drive.ts`, an in-memory Drive API: the same contract tests and the same three-device engine scenarios
+  (edits, conflicts, deletions, encryption) as the in-memory transport pass over it.
+- The engine refuses to write to a remote without a passphrase (`requireEncryption`): Google only ever stores ciphertext.
+- Browser sign-in with Google Identity Services (token flow, `drive.appdata` only). The page gets the token and the database
+  worker asks the page for it. The sync panel has a Drive section: connect, passphrase, auto-sync interval, status.
+- **Not verified against the real Google**: that needs the OAuth client id. The first real run may surface differences from the
+  fake (CORS, quotas, token renewal in the browser).
+
+Still to do: desktop app (loopback OAuth with a refresh token), a "reconnect" prompt when silent renewal is blocked, Firefox/Safari.
+
+### Phase 2: Google Drive (original design)
 
 - **Scope: `https://www.googleapis.com/auth/drive.appdata`** only. Notes go to the hidden *application data folder*:
   OpenNote cannot see or touch anything else in the user's Drive, and the user does not see the files in Drive.

@@ -7,7 +7,14 @@
     "noUncheckedIndexedAccess": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "noEmit": true
+    "noEmit": true,
+    "types": [
+      "node",
+      "vite/client"
+    ]
   },
-  "include": ["src", "test"]
+  "include": [
+    "src",
+    "test"
+  ]
 }

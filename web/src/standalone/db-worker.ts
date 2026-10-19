@@ -11,11 +11,32 @@ import { SqlBlobStore } from '../../../server/src/blobs-sql';
 import { initSchema } from '../../../server/src/schema';
 import { wasmDatabase, type WasmDb } from '../../../server/src/sql-wasm';
 import { NoteStore } from '../../../server/src/store';
-import type { ApiRequest, ApiResponse, WorkerStatus } from './protocol';
+import { GoogleDriveTransport } from '../../../server/src/sync-gdrive';
+import { SyncEngine, SyncError, startSyncScheduler } from '../../../server/src/sync';
+import type { ApiRequest, ApiResponse, TokenReply, TokenRequest, WorkerStatus } from './protocol';
 
 /** `self` as a dedicated worker (the web tsconfig only knows the Window flavour of postMessage). */
 const ctx = self as unknown as { postMessage(message: unknown, transfer?: Transferable[]): void };
 const status = (s: WorkerStatus) => ctx.postMessage(s);
+
+/** Access tokens come from the page (Google sign-in needs a window). */
+const waitingForToken = new Map<number, { resolve: (t: string) => void; reject: (e: Error) => void }>();
+let tokenIds = 0;
+const getToken = (force: boolean) =>
+  new Promise<string>((resolve, reject) => {
+    const id = ++tokenIds;
+    waitingForToken.set(id, { resolve, reject });
+    const req: TokenRequest = { type: 'token-request', id, force };
+    ctx.postMessage(req);
+  });
+
+/** "Chrome on macOS": a recognisable default name for this device in the sync status. */
+function deviceName(): string {
+  const ua = navigator.userAgent;
+  const browser = /Edg\//.test(ua) ? 'Edge' : /Firefox\//.test(ua) ? 'Firefox' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : 'Browser';
+  const os = /Android/.test(ua) ? 'Android' : /iPhone|iPad/.test(ua) ? 'iOS' : /Mac/.test(ua) ? 'macOS' : /Windows/.test(ua) ? 'Windows' : /Linux/.test(ua) ? 'Linux' : '';
+  return os ? `${browser} on ${os}` : browser;
+}
 
 let sqlite3: any;
 
@@ -26,22 +47,38 @@ async function open() {
   initSchema(db);
   const store = new NoteStore(db, new SqlBlobStore(db));
   store.seedTemplates(navigator.language);
-  return createApp(store, undefined, undefined, undefined, { standalone: true });
+  const sync = new SyncEngine(store, {
+    dataDir: '',
+    deviceName: deviceName(),
+    transport: () => new GoogleDriveTransport({ getToken }),
+    remoteLabel: 'Google Drive',
+    requireEncryption: true,
+  });
+  return { app: createApp(store, sync, undefined, undefined, { standalone: true }), sync };
 }
 
 const HOLD_FOREVER = new Promise<never>(() => {});
 
 void navigator.locks.request('opennote-db', { ifAvailable: true }, async (lock) => {
   if (!lock) return status({ type: 'locked' });
-  let app: Awaited<ReturnType<typeof open>>;
+  let app: Awaited<ReturnType<typeof open>>['app'];
   try {
-    app = await open();
+    const opened = await open();
+    app = opened.app;
+    startSyncScheduler(opened.sync, (msg) => console.warn(msg));
   } catch (err) {
     return status({ type: 'failed', message: err instanceof Error ? err.message : String(err) });
   }
 
-  self.onmessage = async (event: MessageEvent<ApiRequest | { type: 'selftest' }>) => {
+  self.onmessage = async (event: MessageEvent<ApiRequest | TokenReply | { type: 'selftest' }>) => {
     const m = event.data;
+    if (m?.type === 'token') {
+      const waiting = waitingForToken.get(m.id);
+      waitingForToken.delete(m.id);
+      if (m.token) waiting?.resolve(m.token);
+      else waiting?.reject(new SyncError(m.error ?? 'Could not get a Google access token'));
+      return;
+    }
     if (m?.type === 'selftest') {
       const { selfTest } = await import('./selftest');
       return ctx.postMessage({ type: 'selftest-result', result: await selfTest(sqlite3) });

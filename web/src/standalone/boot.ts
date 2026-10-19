@@ -2,7 +2,8 @@
  * Starts OpenNote without a server: a worker with the database, and a service worker that answers every `/api/...` request
  * of the page (fetches, <img> tags, uploads) by asking the tab that owns the database. The UI code is unchanged.
  */
-import type { ApiRequest, ApiResponse, WorkerStatus } from './protocol';
+import { getToken } from './google-auth';
+import type { ApiRequest, ApiResponse, TokenReply, TokenRequest, WorkerStatus } from './protocol';
 
 export async function bootStandalone(): Promise<void> {
   if (!('serviceWorker' in navigator) || !navigator.locks) {
@@ -40,6 +41,14 @@ export async function bootStandalone(): Promise<void> {
       if (m?.type !== 'response') return;
       pending.get(m.id)?.postMessage(m, [m.body]);
       pending.delete(m.id);
+    });
+    worker.addEventListener('message', (e: MessageEvent<TokenRequest>) => {
+      const m = e.data;
+      if (m?.type !== 'token-request') return;
+      void getToken(m.force).then(
+        (token) => worker.postMessage({ type: 'token', id: m.id, token } satisfies TokenReply),
+        (err: Error) => worker.postMessage({ type: 'token', id: m.id, error: err.message } satisfies TokenReply),
+      );
     });
     navigator.serviceWorker.addEventListener('message', (e: MessageEvent<Omit<ApiRequest, 'id'> & { type: 'request' }>) => {
       const port = e.ports[0];
