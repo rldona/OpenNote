@@ -9,6 +9,8 @@ import { Icon, type IconName } from './Icon';
 import { parseHash, toHash, type View } from './route';
 import { PromptHost, askText } from './Prompt';
 import { NotebooksOverview } from './Notebooks';
+import { SearchPanel } from './Search';
+import { SwipeRow } from './Swipe';
 import { ACCENTS, usePrefs, type Accent, type SortKey, type Theme } from './prefs';
 import { useLayout } from './layout';
 import { isEncryptedHtml, type NoteCipher } from './crypto';
@@ -93,8 +95,8 @@ export function App() {
       root.style.removeProperty('--vvtop');
     };
   }, [phone]);
-  // Phones: the search field sits above the note list once the Search tab is chosen.
-  const [phoneSearch, setPhoneSearch] = useState(false);
+  /** The search panel (⌘K / Ctrl+K, "/", the Search tab on phones and the search button of the rail). */
+  const [searchOpen, setSearchOpen] = useState(false);
   /** A note opened from inside the app on a phone: its back button can step back through the browser history. */
   const openedHere = useRef(false);
   const searchInput = useRef<HTMLInputElement>(null);
@@ -317,29 +319,19 @@ export function App() {
   const createNoteRef = useRef(createNote);
   createNoteRef.current = createNote;
 
-  /** "/" and the phone Search tab: a search field with the cursor in it, wherever this window size keeps one. */
   const openSearch = () => {
-    setPrefs({ focus: false });
-    if (phone) {
-      setPhoneSearch(true);
-      select(null);
-      setView((v) => (v.kind === 'home' || v.kind === 'notebooks' || v.kind === 'tasks' ? { kind: 'all' } : v));
-      setTimeout(() => phoneSearchInput.current?.focus(), 0);
-    } else {
-      if (drawer) setDrawerOpen(true);
-      else setPrefs({ sidebarHidden: false, focus: false });
-      setTimeout(() => searchInput.current?.focus(), 0);
-    }
+    setDrawerOpen(false);
+    setSearchOpen(true);
   };
   const openSearchRef = useRef(openSearch);
   openSearchRef.current = openSearch;
 
-  // Shortcuts: "/" jumps to search, Ctrl/Cmd+N starts a note.
+  // Shortcuts: "/" and Ctrl/Cmd+K open the search panel, Ctrl/Cmd+N starts a note.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null;
       const typing = !!el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
-      if (e.key === '/' && !typing && !e.metaKey && !e.ctrlKey) {
+      if ((e.key === '/' && !typing && !e.metaKey && !e.ctrlKey) || ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k' && !e.shiftKey && !e.altKey)) {
         e.preventDefault();
         openSearchRef.current();
       } else if (e.key === 'Escape') {
@@ -772,10 +764,10 @@ export function App() {
             )}
           </div>
         </div>
-        {phone && (phoneSearch || query) && view.kind !== 'tasks' && (
+        {phone && query && view.kind !== 'tasks' && (
           <div className="phone-search">
             {searchField(phoneSearchInput, () => phoneSearchInput.current?.blur())}
-            <button className="text-btn" onClick={() => { setQuery(''); setPhoneSearch(false); }}>{t('cancel')}</button>
+            <button className="text-btn" onClick={() => setQuery('')}>{t('cancel')}</button>
           </div>
         )}
         {view.kind !== 'tasks' && (
@@ -835,6 +827,28 @@ export function App() {
           {shownNotes.length === 0 && <li className="empty">{t('noNotes')}</li>}
           {shownNotes.map((n) => (
             <li key={n.id}>
+              <SwipeRow
+                enabled={phone && view.kind !== 'trash' && checked.size === 0}
+                right={{
+                  label: n.pinned ? t('unpin') : t('pin'),
+                  icon: 'pin',
+                  run: async () => {
+                    await api.updateNote(n.id, { pinned: !n.pinned });
+                    setToast(n.pinned ? t('unpinned') : t('pinned1'));
+                    await Promise.all([refreshList(), refreshMeta()]);
+                  },
+                }}
+                left={{
+                  label: t('delete'),
+                  icon: 'trash',
+                  run: async () => {
+                    await api.trashNote(n.id);
+                    if (n.id === selectedId) select(null);
+                    setToast(t('movedToTrash'));
+                    await Promise.all([refreshList(), refreshMeta()]);
+                  },
+                }}
+              >
               <button
                 className={`note-item ${n.id === selectedId ? 'active' : ''} ${checked.has(n.id) ? 'checked' : ''}`}
                 aria-pressed={checked.has(n.id)}
@@ -860,6 +874,7 @@ export function App() {
                   {n.tags.map((tag) => <span className="chip" key={tag}>{tag}</span>)}
                 </div>
               </button>
+              </SwipeRow>
             </li>
           ))}
         </ul>
@@ -892,6 +907,9 @@ export function App() {
               onOpenNotebooks={() => setView({ kind: 'notebooks' })}
               onOpenNotebook={(id) => setView({ kind: 'notebook', id })}
               onOpenPinned={() => setView({ kind: 'pinned' })}
+              onOpenTag={(name) => setView({ kind: 'tag', name })}
+              widgets={prefs.home}
+              onWidgets={(home) => setPrefs({ home })}
               onCreate={async (title) => {
                 const created = await api.createNote({ title, notebookId: undefined });
                 await Promise.all([refreshList(), refreshMeta()]);
@@ -946,19 +964,19 @@ export function App() {
 
       {phone && (
         <nav className="bottom-nav" aria-label={t('menu')}>
-          <button aria-current={view.kind === 'home' && !note ? 'page' : undefined} onClick={() => { setPhoneSearch(false); setView({ kind: 'home' }); select(null); }}>
+          <button aria-current={view.kind === 'home' && !note ? 'page' : undefined} onClick={() => { setView({ kind: 'home' }); select(null); }}>
             <Icon name="home" size={22} /><span>{t('home')}</span>
           </button>
           <button
-            aria-current={phonePane === 'list' && !phoneSearch ? 'page' : undefined}
-            onClick={() => { setPhoneSearch(false); setView((v) => (v.kind === 'home' || v.kind === 'notebooks' ? { kind: 'all' } : v)); select(null); }}
+            aria-current={phonePane === 'list' && !searchOpen ? 'page' : undefined}
+            onClick={() => { setView((v) => (v.kind === 'home' || v.kind === 'notebooks' ? { kind: 'all' } : v)); select(null); }}
           >
             <Icon name="notes" size={22} /><span>{t('notesTab')}</span>
           </button>
           <button className="bottom-new" aria-label={t('newNote')} title={t('newNote')} onClick={() => void createNote()}>
             <Icon name="plus" size={24} />
           </button>
-          <button aria-current={phoneSearch ? 'page' : undefined} onClick={openSearch}>
+          <button aria-current={searchOpen ? 'page' : undefined} onClick={openSearch}>
             <Icon name="search" size={22} /><span>{t('searchTab')}</span>
           </button>
           <button aria-expanded={drawerOpen} onClick={() => setDrawerOpen(true)}>
@@ -1000,6 +1018,17 @@ export function App() {
             void Promise.all([refreshList(), refreshMeta(), refreshSync()]);
             setToast(`${t('syncDone', { pushed: r.pushed, pulled: r.pulled })}${auto ? ` · ${t('autoSyncOn')}` : ''}`);
           }}
+        />
+      )}
+
+      {searchOpen && (
+        <SearchPanel
+          notebooks={notebooks}
+          tags={tags}
+          searches={searches}
+          onClose={() => setSearchOpen(false)}
+          onOpen={(id) => { setSearchOpen(false); select(id); }}
+          onShowAll={(q) => { setSearchOpen(false); setQuery(q); setView({ kind: 'all' }); select(null); }}
         />
       )}
 

@@ -35,6 +35,13 @@ when a `v*` tag is pushed; the section of the tag becomes the release notes.
 - **New note ▾** replaces the template picker next to New note: a blank note or any of your templates.
 - **Note list header** shows how many notes are in the list and has a **+** that creates the note in the notebook or tag you are
   looking at. Below it, filter chips narrow the list: open tasks, attachments, reminder, updated this week.
+- **Home you can arrange.** **Customize** on Home moves widgets, hides them and brings them back (Tasks, Reminders, Notebooks,
+  Pinned, Recent notes and a new Tags widget). Widgets fill each row whatever you pick, so the page has no gaps, and on phones
+  recent notes are a row of cards to swipe through.
+- **Search panel** (Ctrl/⌘+K, or /): results while you type, open one with ↑↓ and Enter, or show them all in the note list.
+  One-tap chips add search operators (`tag:`, `notebook:`, `todo:true`, `resource:*`, `created:week`…) and complete tag and
+  notebook names; recent and saved searches show while the field is empty. On phones it is the Search tab, full screen.
+- **Swipe on phones:** in a note list, swipe a note to the right to pin or unpin it, to the left to move it to the trash.
 - **Phones:** dialogs (history, sync, link to note, prompts…) and menus (sort, ⋯, appearance) open as sheets from the bottom of
   the screen, with larger rows.
 

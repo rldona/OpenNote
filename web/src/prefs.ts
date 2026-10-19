@@ -4,6 +4,9 @@ export type Theme = 'system' | 'light' | 'dark';
 export type Accent = 'green' | 'blue' | 'violet' | 'orange' | 'pink';
 export type Density = 'comfortable' | 'compact';
 export type SortKey = 'updated' | 'created' | 'title';
+export type Widget = 'tasks' | 'reminders' | 'notebooks' | 'pinned' | 'recent' | 'tags';
+export const WIDGETS: Widget[] = ['tasks', 'reminders', 'notebooks', 'pinned', 'recent', 'tags'];
+export const HOME_DEFAULT: Widget[] = ['tasks', 'reminders', 'notebooks', 'pinned', 'recent'];
 
 export interface Prefs {
   theme: Theme;
@@ -17,11 +20,13 @@ export interface Prefs {
   focus: boolean;
   /** Sidebar sections folded by hand: 'shortcuts', 'notebooks', 'tags' or `stack:<name>`. */
   collapsed: string[];
+  /** Home page widgets, in order; the ones left out are hidden. */
+  home: Widget[];
 }
 
 export const ACCENTS: Accent[] = ['green', 'blue', 'violet', 'orange', 'pink'];
 
-const defaults: Prefs = { theme: 'system', accent: 'green', density: 'comfortable', sort: 'updated', sidebarHidden: false, focus: false, collapsed: [] };
+const defaults: Prefs = { theme: 'system', accent: 'green', density: 'comfortable', sort: 'updated', sidebarHidden: false, focus: false, collapsed: [], home: HOME_DEFAULT };
 const KEY = 'opennote.prefs';
 
 const oneOf = <T extends string>(value: unknown, allowed: readonly T[], fallback: T): T =>
@@ -37,6 +42,7 @@ function load(): Prefs {
       sort: oneOf(raw.sort, ['updated', 'created', 'title'], defaults.sort),
       sidebarHidden: raw.sidebarHidden === true,
       focus: raw.focus === true,
+      home: Array.isArray(raw.home) ? [...new Set(raw.home.filter((x): x is Widget => WIDGETS.includes(x as Widget)))] : HOME_DEFAULT,
       collapsed: Array.isArray(raw.collapsed) ? raw.collapsed.filter((x): x is string => typeof x === 'string').slice(0, 200) : [],
       // Older versions also saved `split` (list above editor in narrow windows); it is dropped on the next save.
     };

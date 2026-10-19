@@ -360,9 +360,19 @@ button.with-icon { display: inline-flex; align-items: center; justify-content: c
 .capture input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .capture button { width: 46px; display: grid; place-items: center; border-radius: 12px; padding: 0; }
 .capture button:disabled { opacity: .4; cursor: default; }
-.home-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; align-items: start; }
-.home-grid > section { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px 10px; }
-.home-grid > section.wide { grid-column: 1 / -1; }
+.home-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.home-head .text-btn.on { border-color: var(--accent); color: var(--accent); }
+/* Twelve columns; Home.tsx gives each widget a span that fills its row, and rows share a height, so there are no holes. */
+.home-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; align-items: stretch; }
+.home-grid > section { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px 10px; min-width: 0; }
+.home-grid.editing > section { border-style: dashed; border-color: var(--accent); }
+.widget-tools { display: flex; gap: 2px; margin: -6px -8px -6px 0; }
+.widget-tools .icon-btn { width: 28px; height: 28px; }
+.widget-tools .icon-btn:disabled { opacity: .3; }
+.hidden-widgets { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 16px; }
+.home-tags { display: flex; flex-wrap: wrap; gap: 6px; padding-bottom: 6px; }
+.home-tags .chip { border: 0; padding: 3px 10px; gap: 6px; cursor: pointer; }
+.home-tags .chip small { color: var(--muted); }
 .home h2 { font-size: 13px; font-weight: 600; color: var(--muted); margin: 0 0 8px; display: flex; justify-content: space-between; align-items: center; }
 .home ul { list-style: none; margin: 0; padding: 0; }
 .home .link { background: none; border: 0; color: var(--accent); font-size: 12px; font-weight: 500; }
@@ -430,7 +440,12 @@ button.with-icon { display: inline-flex; align-items: center; justify-content: c
 .app.layout-s.pane-list .editor-pane, .app.layout-s.pane-editor .list-pane { display: none; }
 .app.layout-s .page, .app.layout-s .home { --gutter: 16px; padding-top: 20px; }
 .app.layout-s .home h1, .app.layout-s .page h1 { font-size: 24px; }
-.app.layout-s .home-grid { grid-template-columns: minmax(0, 1fr); }
+.app.layout-s .home-grid { gap: 12px; }
+/* Recent notes become a row of cards to swipe through. */
+.app.layout-s .home ul.recent { display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 8px; margin: 0 -16px; padding-inline: 16px; scrollbar-width: none; }
+.app.layout-s .home ul.recent > li { flex: 0 0 72%; scroll-snap-align: start; }
+.app.layout-s .home ul.recent .home-note { height: 100%; background: var(--bg-hover); padding: 10px 12px; }
+.app.layout-s .home ul.recent .home-note small { white-space: normal; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
 .app.layout-s .list-head { padding: 10px 12px 6px 16px; }
 .app.layout-s .filters { padding-left: 16px; padding-right: 12px; }
 .app.layout-s .list-new { display: none; } /* the bottom bar has the same button */
@@ -647,3 +662,62 @@ button.with-icon { display: inline-flex; align-items: center; justify-content: c
 .app.layout-s .appearance { min-width: 0; }
 @keyframes sheet-in { from { transform: translateY(24px); opacity: .5; } }
 @media (prefers-reduced-motion: reduce) { .app.layout-s .modal, .app.layout-s .popover-panel { animation: none; } }
+
+/* search panel */
+.search-backdrop { place-items: start center; padding-top: 10vh; }
+.modal.search-panel { width: min(640px, 94vw); max-height: 76vh; display: flex; flex-direction: column; padding: 12px; gap: 8px; }
+.search-top { display: flex; align-items: center; gap: 8px; }
+.search-top .search {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 0 10px; color: var(--muted);
+  background: var(--bg-card); border: 1px solid var(--accent); border-radius: 10px; box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.search-top input { flex: 1; min-width: 0; padding: 10px 0; border: 0; background: none; outline: none; font-size: 16px; }
+.search-top input::-webkit-search-cancel-button { display: none; }
+.search-cancel { display: none; border: 0; color: var(--accent); }
+.search-chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; flex: none; }
+.search-chips::-webkit-scrollbar { display: none; }
+.search-chips .filter { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 12px; }
+.search-body { overflow-y: auto; min-height: 0; flex: 1; }
+.search-body ul { list-style: none; margin: 0; padding: 0; }
+.search-body .panel-label { margin: 10px 8px 4px; }
+.search-row, .search-result {
+  display: flex; width: 100%; text-align: left; background: none; border: 0; border-radius: 8px; padding: 8px 10px; min-width: 0;
+}
+.search-row { align-items: center; gap: 10px; color: var(--fg); }
+.search-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.search-row small { color: var(--muted); margin-left: auto; font-family: ui-monospace, 'SF Mono', Menlo, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.search-row:hover { background: var(--bg-hover); }
+.search-result { flex-direction: column; }
+.search-result strong { display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.search-result strong .icon { color: var(--accent); }
+.search-result small { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.search-body li[aria-selected='true'] .search-result { background: var(--accent-soft); }
+.search-empty { padding: 16px 10px; }
+.search-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-top: 8px; border-top: 1px solid var(--border); }
+.search-foot .muted { font-size: 11px; }
+/* Phones: the panel is the Search screen, full height, with a Cancel button instead of keyboard hints. */
+.app.layout-s .search-backdrop { place-items: stretch; padding: 0; }
+.app.layout-s .modal.search-panel {
+  width: 100%; height: 100%; max-height: none; border-radius: 0; border: 0; animation: none;
+  padding: calc(10px + env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px));
+}
+.app.layout-s .modal.search-panel::before { display: none; }
+.app.layout-s .search-cancel { display: inline-block; }
+.app.layout-s .search-foot .muted { display: none; }
+@media (pointer: coarse) { .search-row, .search-result { padding-block: 11px; } .search-foot .muted { display: none; } }
+
+/* swipe actions on the phone note list */
+.swipe { position: relative; border-radius: var(--radius); overflow: hidden; touch-action: pan-y; margin: 1px 0; }
+.swipe .note-item { margin: 0; }
+.swipe-fg { position: relative; background: var(--bg-list); border-radius: var(--radius); transition: transform .18s ease; }
+.swipe-fg.dragging { transition: none; }
+.swipe-bg {
+  position: absolute; inset: 0; display: flex; justify-content: space-between; align-items: center; padding: 0 18px;
+  font-size: 13px; font-weight: 600; opacity: .75; transition: opacity .12s;
+}
+.swipe-bg span { display: inline-flex; align-items: center; gap: 6px; }
+.swipe.armed .swipe-bg { opacity: 1; }
+.swipe.to-right .swipe-bg { background: var(--accent); color: var(--accent-fg); }
+.swipe.to-left .swipe-bg { background: var(--danger); color: var(--bg); }
+.swipe.to-right .swipe-l, .swipe.to-left .swipe-r, .swipe:not(.to-left):not(.to-right) .swipe-bg { visibility: hidden; }
+@media (prefers-reduced-motion: reduce) { .swipe-fg { transition: none; } }
