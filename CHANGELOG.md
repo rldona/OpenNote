@@ -6,6 +6,12 @@ when a `v*` tag is pushed; the section of the tag becomes the release notes.
 
 ## [Unreleased]
 
+### Added
+- Web version: after the first successful sync to Google Drive, automatic sync turns itself on; it also syncs when you come
+  back to the tab or the connection returns.
+- Web version: when Google's hourly access renewal is blocked by the browser, OpenNote says so and renews with your next click
+  anywhere in the page, then resumes syncing.
+
 ### Fixed
 - Web version: on the very first visit the app could start before its service worker was in control and show an empty library; it now waits longer and reloads itself once if needed.
 - Web version: a new release now shows up on the next visit instead of up to ten minutes later (the page is revalidated).

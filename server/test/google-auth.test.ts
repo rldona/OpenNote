@@ -2,13 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 interface Call { prompt: string; scope: string; clientId: string }
 
-function installGoogle(behaviour: (call: Call) => { token?: string; error?: string; expires?: number } | 'popup_closed') {
+function installGoogle(behaviour: (call: Call) => { token?: string; error?: string; expires?: number } | 'popup_closed' | 'popup_failed_to_open') {
   const calls: Call[] = [];
   const revoked: string[] = [];
   const store = new Map<string, string>();
   const g = globalThis as Record<string, unknown>;
   g.localStorage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v), removeItem: (k: string) => void store.delete(k) };
-  g.window = {
+  g.window = Object.assign(new EventTarget(), {
     google: {
       accounts: {
         oauth2: {
@@ -18,7 +18,7 @@ function installGoogle(behaviour: (call: Call) => { token?: string; error?: stri
               calls.push(call);
               const r = behaviour(call);
               queueMicrotask(() => {
-                if (r === 'popup_closed') c.error_callback({ type: 'popup_closed' });
+                if (r === 'popup_closed' || r === 'popup_failed_to_open') c.error_callback({ type: r });
                 else c.callback({ access_token: r.token, error: r.error, expires_in: r.expires ?? 3600 });
               });
             },
@@ -27,7 +27,7 @@ function installGoogle(behaviour: (call: Call) => { token?: string; error?: stri
         },
       },
     },
-  };
+  });
   return { calls, revoked, store };
 }
 
@@ -98,5 +98,28 @@ describe('Google sign-in (browser build)', () => {
     expect(g.revoked).toEqual(['tok-x']);
     expect(auth.isConnected()).toBe(false);
     await expect(auth.getToken(false)).rejects.toThrow(/Connect Google Drive first/);
+  });
+
+  it('when the browser blocks the background renewal, it waits for the next click, renews inside it and tells the app', async () => {
+    let blocked = true;
+    const g = installGoogle((call) => (call.prompt === '' && blocked ? 'popup_failed_to_open' : { token: 'tok-renewed' }));
+    const auth = await load();
+    await auth.connect();
+    const seen: string[] = [];
+    for (const e of ['opennote:drive-needs-click', 'opennote:drive-renewed', 'opennote:drive-needs-connect']) {
+      (globalThis as unknown as { window: EventTarget }).window.addEventListener(e, () => seen.push(e));
+    }
+    await expect(auth.getToken(true)).rejects.toThrow(/click anywhere/);
+    expect(seen).toEqual(['opennote:drive-needs-click']);
+    await expect(auth.getToken(true)).rejects.toThrow(/click anywhere/); // still waiting: no second listener, no second notice
+    expect(seen).toEqual(['opennote:drive-needs-click']);
+
+    blocked = false; // the click is a user gesture: the popup is allowed
+    const before = g.calls.length;
+    (globalThis as unknown as { window: EventTarget }).window.dispatchEvent(new Event('pointerdown'));
+    await new Promise((r) => setTimeout(r, 10));
+    expect(g.calls.length).toBe(before + 1);
+    expect(seen).toEqual(['opennote:drive-needs-click', 'opennote:drive-renewed']);
+    expect(await auth.getToken(false)).toBe('tok-renewed'); // the renewed token is cached
   });
 });

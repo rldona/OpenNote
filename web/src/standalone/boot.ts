@@ -80,6 +80,8 @@ export async function bootStandalone(): Promise<void> {
       worker.postMessage(req, req.body ? [req.body] : []);
     });
     navigator.serviceWorker.controller?.postMessage({ type: 'owner' });
+    // Diagnostic: `await opennoteDriveRenew()` asks Google for a fresh access token as a background renewal would.
+    (window as unknown as { opennoteDriveRenew: () => Promise<string> }).opennoteDriveRenew = () => getToken(true);
     // Diagnostic for this browser: `await opennoteSelfTest()` in the console runs two simulated devices through the sync
     // engine on throw-away databases (see selftest.ts).
     (window as unknown as { opennoteSelfTest: () => Promise<unknown> }).opennoteSelfTest = () =>

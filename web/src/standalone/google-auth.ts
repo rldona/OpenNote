@@ -91,13 +91,39 @@ export async function connect(): Promise<void> {
   remember(true);
 }
 
+/**
+ * The browser only opens Google's (usually invisible) renewal popup during a user gesture. When a renewal is needed in the
+ * background it is blocked, so the next click or key press anywhere in the page is used to renew, and the app is told.
+ */
+let waitingForGesture = false;
+function renewOnNextGesture(): void {
+  if (waitingForGesture) return;
+  waitingForGesture = true;
+  window.dispatchEvent(new Event('opennote:drive-needs-click'));
+  const events = ['pointerdown', 'keydown'] as const;
+  const run = () => {
+    for (const e of events) window.removeEventListener(e, run, true);
+    waitingForGesture = false;
+    // Starts inside the gesture, so the popup is allowed.
+    request('').then(
+      () => window.dispatchEvent(new Event('opennote:drive-renewed')),
+      () => window.dispatchEvent(new Event('opennote:drive-needs-connect')),
+    );
+  };
+  for (const e of events) window.addEventListener(e, run, true);
+}
+
 /** A valid access token for the sync engine. `force` skips the cached one (after Drive answered 401). */
 export function getToken(force: boolean): Promise<string> {
   if (!isConnected()) return Promise.reject(new Error('Connect Google Drive first'));
   if (!force && cached && cached.expiresAt > Date.now()) return Promise.resolve(cached.token);
   inflight ??= preloadGoogle()
     .then(() => request(''))
-    .catch(() => {
+    .catch((err: Error) => {
+      if (/popup_failed_to_open/.test(err.message)) {
+        renewOnNextGesture();
+        throw new Error('Google Drive sync paused: click anywhere in OpenNote to resume');
+      }
       throw new Error('Google needs you to connect again');
     })
     .finally(() => {

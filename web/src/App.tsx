@@ -135,6 +135,46 @@ export function App() {
     return () => clearInterval(id);
   }, []);
 
+  // Google Drive (browser build): renewals need a click, and a sync is useful whenever the page comes back or goes online.
+  useEffect(() => {
+    if (!__STANDALONE__) return;
+    let last = 0;
+    const syncIfOn = async () => {
+      if (Date.now() - last < 60_000) return;
+      last = Date.now();
+      try {
+        const cfg = await api.syncConfig();
+        if (cfg.enabled && cfg.remote) {
+          await api.syncNow();
+          void refreshList();
+          void refreshMeta();
+        }
+      } catch {
+        /* the sync panel shows the details */
+      }
+    };
+    const onVisible = () => document.visibilityState === 'visible' && void syncIfOn();
+    const needsClick = () => setToast(t('driveNeedsClick'));
+    const renewed = () => {
+      setToast(t('driveRenewed'));
+      last = 0;
+      void syncIfOn();
+    };
+    const reconnect = () => setToast(t('driveReconnect'));
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('online', onVisible);
+    window.addEventListener('opennote:drive-needs-click', needsClick);
+    window.addEventListener('opennote:drive-renewed', renewed);
+    window.addEventListener('opennote:drive-needs-connect', reconnect);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('online', onVisible);
+      window.removeEventListener('opennote:drive-needs-click', needsClick);
+      window.removeEventListener('opennote:drive-renewed', renewed);
+      window.removeEventListener('opennote:drive-needs-connect', reconnect);
+    };
+  }, [refreshList, refreshMeta]);
+
   // The local server may stop (or not be started yet): show a banner instead of a silently empty app.
   useEffect(() => {
     const down = () => setServerDown(true);

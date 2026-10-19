@@ -15,6 +15,7 @@ export function SyncPanel({ onClose, onSynced }: { onClose: () => void; onSynced
   const [busy, setBusy] = useState(false);
   const [connected, setConnected] = useState(isConnected());
   const [signing, setSigning] = useState(false);
+  const [note, setToastNote] = useState<string | null>(null);
 
   useEffect(() => {
     // Load Google's script now so that a later click can open the sign-in popup immediately.
@@ -55,7 +56,13 @@ export function SyncPanel({ onClose, onSynced }: { onClose: () => void; onSynced
     setError(null);
     try {
       if (!(await saveAll())) return;
-      setStatus(await api.syncNow());
+      const result = await api.syncNow();
+      setStatus(result);
+      // First good sync to a remote: from now on keep it in sync without asking again (the user can untick it).
+      if (cfg?.remote && result.ok && !cfg.enabled) {
+        await save({ enabled: true });
+        setToastNote(t('autoSyncOn'));
+      }
       onSynced();
     } catch (e) {
       setError((e as Error).message);
@@ -124,6 +131,7 @@ export function SyncPanel({ onClose, onSynced }: { onClose: () => void; onSynced
             <input type="number" min={1} max={1440} value={interval} style={{ width: 70 }} onChange={(e) => setIntervalMin(Number(e.target.value))} />
           </label>
         </div>
+        {note && <p className="muted" role="status">✓ {note}</p>}
         {error && <p className="error" role="alert">{error}</p>}
         <div className="row">
           <button className="primary" disabled={busy || !canSync} onClick={() => void syncNow()}>
