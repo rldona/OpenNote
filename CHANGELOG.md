@@ -6,6 +6,20 @@ when a `v*` tag is pushed; the section of the tag becomes the release notes.
 
 ## [Unreleased]
 
+### Changed
+- **Layouts for phones and tablets.** The window size now picks one of four layouts instead of a single 900 px switch:
+  - wide windows (1280 px and up) keep sidebar, note list and note side by side;
+  - 1024–1279 px (tablets in landscape, small laptops) keep the same three panes with narrower columns, so the note has more room;
+  - 700–1023 px (tablets in portrait) show the note list beside the note, and the sidebar opens as a drawer over them;
+  - phones (under 700 px, or a short landscape window) show one screen at a time: Home, a note list or a note. A bar at the
+    bottom has Home, Notes, a New note button, Search and More (the sidebar, as a drawer). An open note fills the screen, with a
+    back button in its header, and the formatting toolbar stays on one row that scrolls sideways.
+- The split between the note list and the note (narrow windows, 0.4.3) is gone: the list and the note are now side by side or
+  on separate screens. The saved split size is ignored.
+- On touch screens buttons are at least 44 px, rename/delete show on the selected notebook (there is no hover), and the keyboard
+  tip on Home is hidden. Installed on a phone, the app keeps clear of the notch and the home indicator and follows the visible
+  height of the screen.
+
 ## [0.4.3] - 2026-10-19
 
 ### Added

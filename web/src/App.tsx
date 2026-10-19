@@ -9,22 +9,10 @@ import { Icon, type IconName } from './Icon';
 import { parseHash, toHash, type View } from './route';
 import { PromptHost, askText } from './Prompt';
 import { NotebooksOverview } from './Notebooks';
-import { ACCENTS, SPLIT_DEFAULT, clampSplit, usePrefs, type Accent, type SortKey, type Theme } from './prefs';
+import { ACCENTS, usePrefs, type Accent, type SortKey, type Theme } from './prefs';
+import { useLayout } from './layout';
 import { isEncryptedHtml, type NoteCipher } from './crypto';
 import { locale, t } from './i18n';
-
-/** Same breakpoint as the stacked layout in styles.css. */
-const NARROW_QUERY = '(max-width: 900px)';
-function useNarrow(): boolean {
-  const [narrow, setNarrow] = useState(() => window.matchMedia(NARROW_QUERY).matches);
-  useEffect(() => {
-    const m = window.matchMedia(NARROW_QUERY);
-    const on = () => setNarrow(m.matches);
-    m.addEventListener('change', on);
-    return () => m.removeEventListener('change', on);
-  }, []);
-  return narrow;
-}
 
 const same = (a: View, b: View) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -61,15 +49,19 @@ export function App() {
   useEffect(() => setUnlocked(null), [selectedId]);
   const [history, setHistory] = useState<Version[] | null>(null);
   const [prefs, setPrefs] = usePrefs();
-  // Narrow window: the sidebar hides by itself and comes back when the window is wide again. Opening it by hand while narrow
-  // lasts until the window changes size class (or a section is chosen).
-  const narrow = useNarrow();
-  const [sidebarWhileNarrow, setSidebarWhileNarrow] = useState(false);
-  useEffect(() => setSidebarWhileNarrow(false), [narrow]);
-  const [liveSplit, setLiveSplit] = useState<number | null>(null);
-  const split = liveSplit ?? prefs.split ?? SPLIT_DEFAULT;
-  const appRef = useRef<HTMLDivElement>(null);
+  // Medium and small windows (see layout.ts): the sidebar is a drawer over the content, closed until asked for and closed
+  // again when a section is chosen or the window changes size class.
+  const size = useLayout();
+  const drawer = size === 'm' || size === 's';
+  const phone = size === 's';
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  useEffect(() => setDrawerOpen(false), [size]);
+  // Phones: the search field sits above the note list once the Search tab is chosen.
+  const [phoneSearch, setPhoneSearch] = useState(false);
+  /** A note opened from inside the app on a phone: its back button can step back through the browser history. */
+  const openedHere = useRef(false);
   const searchInput = useRef<HTMLInputElement>(null);
+  const phoneSearchInput = useRef<HTMLInputElement>(null);
   const importInput = useRef<HTMLInputElement>(null);
   const importFilesInput = useRef<HTMLInputElement>(null);
 
@@ -216,6 +208,7 @@ export function App() {
   useEffect(() => {
     const go = () => {
       const r = parseHash(window.location.hash);
+      openedHere.current = false;
       setSelectedId(r.note);
       setHistory(null);
       setView((cur) => {
@@ -246,12 +239,14 @@ export function App() {
   }, [selectedId, rev, note?.updatedAt]);
 
   const select = (id: string | null) => {
+    openedHere.current = id !== null;
     setSelectedId(id);
     setHistory(null);
     if (id) setView((v) => (v.kind === 'home' || v.kind === 'notebooks' ? { kind: 'all' } : v));
   };
 
   const createNote = async () => {
+    setDrawerOpen(false);
     const created = await api.createNote({ notebookId: view.kind === 'notebook' ? view.id : undefined, tags: view.kind === 'tag' ? [view.name] : undefined });
     if (view.kind === 'trash') setView({ kind: 'all' });
     await Promise.all([refreshList(), refreshMeta()]);
@@ -260,6 +255,23 @@ export function App() {
   const createNoteRef = useRef(createNote);
   createNoteRef.current = createNote;
 
+  /** "/" and the phone Search tab: a search field with the cursor in it, wherever this window size keeps one. */
+  const openSearch = () => {
+    setPrefs({ focus: false });
+    if (phone) {
+      setPhoneSearch(true);
+      select(null);
+      setView((v) => (v.kind === 'home' || v.kind === 'notebooks' || v.kind === 'tasks' ? { kind: 'all' } : v));
+      setTimeout(() => phoneSearchInput.current?.focus(), 0);
+    } else {
+      if (drawer) setDrawerOpen(true);
+      else setPrefs({ sidebarHidden: false, focus: false });
+      setTimeout(() => searchInput.current?.focus(), 0);
+    }
+  };
+  const openSearchRef = useRef(openSearch);
+  openSearchRef.current = openSearch;
+
   // Shortcuts: "/" jumps to search, Ctrl/Cmd+N starts a note.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -267,9 +279,9 @@ export function App() {
       const typing = !!el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
       if (e.key === '/' && !typing && !e.metaKey && !e.ctrlKey) {
         e.preventDefault();
-        setPrefs({ sidebarHidden: false, focus: false });
-        setSidebarWhileNarrow(true);
-        setTimeout(() => searchInput.current?.focus(), 0);
+        openSearchRef.current();
+      } else if (e.key === 'Escape') {
+        setDrawerOpen(false);
       } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'n' && !e.shiftKey && !e.altKey) {
         e.preventDefault();
         void createNoteRef.current();
@@ -352,7 +364,7 @@ export function App() {
   ) => (
     <div className={`nav-item ${same(view, v) ? 'active' : ''}`} key={JSON.stringify(v)} style={{ paddingLeft: indent * 14 }}>
       {toggle}
-      <button className="nav-label" onClick={() => { setView(v); select(null); if (narrow) setSidebarWhileNarrow(false); }} aria-current={same(view, v) ? 'page' : undefined}>
+      <button className="nav-label" onClick={() => { setView(v); select(null); setDrawerOpen(false); }} aria-current={same(view, v) ? 'page' : undefined}>
         <span className="nav-text">{icon && <Icon name={icon} size={16} />}<span>{label}</span></span>
         {count !== undefined && <span className="count">{count}</span>}
       </button>
@@ -415,69 +427,76 @@ export function App() {
     }
   };
 
-  const sidebarOff = prefs.focus || (narrow ? !sidebarWhileNarrow : prefs.sidebarHidden);
-  const showSidebar = () => (narrow ? setSidebarWhileNarrow(true) : setPrefs({ sidebarHidden: false }));
-  const hideSidebar = () => (narrow ? setSidebarWhileNarrow(false) : setPrefs({ sidebarHidden: true }));
-
-  /** Drag the bar between the list and the editor (stacked layout). Double click or Home: back to 20/80. */
-  const lastSplit = useRef(split);
-  const onSplitDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    const rect = appRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    e.preventDefault();
-    e.currentTarget.setPointerCapture(e.pointerId);
-    const move = (ev: PointerEvent) => {
-      lastSplit.current = clampSplit(((ev.clientY - rect.top) / rect.height) * 100);
-      setLiveSplit(lastSplit.current);
-    };
-    const up = () => {
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', up);
-      window.removeEventListener('pointercancel', up);
-      setPrefs({ split: lastSplit.current });
-      setLiveSplit(null);
-    };
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', up);
-    window.addEventListener('pointercancel', up);
+  // Which panes show. xl/l: sidebar (unless hidden), list (unless an overview or focus) and editor. m: list and editor, the
+  // sidebar as a drawer. s: one pane at a time, the editor whenever a note or an overview page is open.
+  const noList = overview || prefs.focus;
+  const sidebarHidden = !drawer && (prefs.focus || prefs.sidebarHidden);
+  const showSidebar = () => (drawer ? setDrawerOpen(true) : setPrefs({ sidebarHidden: false }));
+  const hideSidebar = () => (drawer ? setDrawerOpen(false) : setPrefs({ sidebarHidden: true }));
+  /** The button that brings the sidebar back: in the list header when there is one, floating over the page otherwise. */
+  const menuButton = !prefs.focus && !phone && (drawer || prefs.sidebarHidden);
+  const menuFloating = menuButton && noList;
+  const phonePane = note || overview ? 'editor' : 'list';
+  const goBack = () => {
+    if (openedHere.current) window.history.back();
+    else select(null);
   };
-  const onSplitKey = (e: React.KeyboardEvent) => {
-    const step = e.key === 'ArrowUp' ? -2 : e.key === 'ArrowDown' ? 2 : 0;
-    if (step) setPrefs({ split: clampSplit((prefs.split ?? SPLIT_DEFAULT) + step) });
-    else if (e.key === 'Home') setPrefs({ split: null });
-    else return;
-    e.preventDefault();
-  };
+  const searchField = (ref: React.Ref<HTMLInputElement>, onEnter?: () => void) => (
+    <div className="search">
+      <Icon name="search" size={16} />
+      <input
+        ref={ref}
+        type="search"
+        value={query}
+        placeholder={t('search')}
+        aria-label={t('search')}
+        onChange={(e) => startSearch(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter') onEnter?.(); }}
+      />
+      {query.trim() && !searches.some((s) => s.query === query.trim()) && (
+        <button
+          className="icon-btn"
+          title={t('saveSearch')}
+          aria-label={t('saveSearch')}
+          onClick={async () => {
+            const name = await askText(t('searchName'), query.trim());
+            if (name?.trim()) { await api.saveSearch(name, query); void refreshMeta(); }
+          }}
+        ><Icon name="star" size={16} /></button>
+      )}
+    </div>
+  );
 
   const layout = [
     'app',
+    `layout-${size}`,
     prefs.focus ? 'focus' : '',
-    liveSplit !== null ? 'resizing' : '',
-    sidebarOff ? 'no-sidebar' : '',
-    overview || prefs.focus ? 'no-list' : '',
+    sidebarHidden ? 'no-sidebar' : '',
+    noList ? 'no-list' : '',
+    drawer && drawerOpen ? 'drawer-open' : '',
+    menuFloating ? 'menu-floating' : '',
+    phone ? `pane-${phonePane}` : '',
+    phone && note ? 'note-open' : '',
     prefs.density === 'compact' ? 'dense' : '',
   ].filter(Boolean).join(' ');
 
   return (
-    <div
-      className={layout}
-      ref={appRef}
-      style={{ '--list-row': `${split}fr`, '--editor-row': `${100 - split}fr` } as React.CSSProperties}
-    >
+    <div className={layout}>
       {serverDown && (
         <div className="offline-banner" role="alert">
           {t('serverDown')}
           <button onClick={() => { void refreshList(); void refreshMeta(); }}>{t('retry')}</button>
         </div>
       )}
-      <aside className="sidebar">
+      {drawer && drawerOpen && <div className="drawer-scrim" onClick={() => setDrawerOpen(false)} />}
+      <aside className="sidebar" aria-hidden={drawer && !drawerOpen ? true : undefined}>
         <div className="sidebar-top">
-          <button className="brand" onClick={() => { setView({ kind: 'home' }); select(null); }} aria-label={`OpenNote — ${t('home')}`}>
+          <button className="brand" onClick={() => { setView({ kind: 'home' }); select(null); setDrawerOpen(false); }} aria-label={`OpenNote — ${t('home')}`}>
             <img src={`${import.meta.env.BASE_URL}icons/icon-192.png`} alt="" width="26" height="26" />
             <span>OpenNote</span>
           </button>
-          <button className="icon-btn" title={t('hideSidebar')} aria-label={t('hideSidebar')} onClick={hideSidebar}>
-            <Icon name="sidebar" />
+          <button className="icon-btn" title={drawer ? t('close') : t('hideSidebar')} aria-label={drawer ? t('close') : t('hideSidebar')} onClick={hideSidebar}>
+            <Icon name={drawer ? 'close' : 'sidebar'} />
           </button>
         </div>
         <div className="new-row">
@@ -501,28 +520,7 @@ export function App() {
             </select>
           )}
         </div>
-        <div className="search">
-          <Icon name="search" size={16} />
-          <input
-            ref={searchInput}
-            type="search"
-            value={query}
-            placeholder={t('search')}
-            aria-label={t('search')}
-            onChange={(e) => startSearch(e.target.value)}
-          />
-          {query.trim() && !searches.some((s) => s.query === query.trim()) && (
-            <button
-              className="icon-btn"
-              title={t('saveSearch')}
-              aria-label={t('saveSearch')}
-              onClick={async () => {
-                const name = await askText(t('searchName'), query.trim());
-                if (name?.trim()) { await api.saveSearch(name, query); void refreshMeta(); }
-              }}
-            ><Icon name="star" size={16} /></button>
-          )}
-        </div>
+        {searchField(searchInput, () => setDrawerOpen(false))}
         <nav>
           {navItem({ kind: 'home' }, t('home'), undefined, undefined, 0, undefined, 'home')}
           {navItem({ kind: 'all' }, t('allNotes'), undefined, undefined, 0, undefined, 'notes')}
@@ -554,7 +552,7 @@ export function App() {
           {searches.length > 0 && <div className="section-title"><span>{t('savedSearches')}</span></div>}
           {searches.map((s) => (
             <div className="nav-item" key={s.id}>
-              <button className="nav-label" onClick={() => { startSearch(s.query); setView({ kind: 'all' }); }}>
+              <button className="nav-label" onClick={() => { startSearch(s.query); setView({ kind: 'all' }); setDrawerOpen(false); }}>
                 <span className="nav-text"><Icon name="search" size={16} /><span>{s.name}</span></span>
               </button>
               <span className="row-actions">
@@ -587,6 +585,11 @@ export function App() {
 
       <section className="list-pane">
         <div className="list-head">
+          {menuButton && !menuFloating && (
+            <button className="icon-btn" title={t('showSidebar')} aria-label={t('showSidebar')} onClick={showSidebar}>
+              <Icon name={drawer ? 'menu' : 'sidebar'} />
+            </button>
+          )}
           <h2>{title}</h2>
           <div className="list-tools">
             {view.kind === 'trash' && notes.length > 0 && (
@@ -619,6 +622,12 @@ export function App() {
             )}
           </div>
         </div>
+        {phone && (phoneSearch || query) && view.kind !== 'tasks' && (
+          <div className="phone-search">
+            {searchField(phoneSearchInput, () => phoneSearchInput.current?.blur())}
+            <button className="text-btn" onClick={() => { setQuery(''); setPhoneSearch(false); }}>{t('cancel')}</button>
+          </div>
+        )}
         {view.kind === 'tasks' ? (
           <TaskPanel
             tasks={tasks}
@@ -691,28 +700,13 @@ export function App() {
         )}
       </section>
 
-      <div
-        className={`splitter ${liveSplit !== null ? 'dragging' : ''}`}
-        role="separator"
-        aria-orientation="horizontal"
-        aria-label={t('splitHint')}
-        aria-valuemin={15}
-        aria-valuemax={80}
-        aria-valuenow={Math.round(split)}
-        title={t('splitHint')}
-        tabIndex={0}
-        onPointerDown={onSplitDown}
-        onDoubleClick={() => setPrefs({ split: null })}
-        onKeyDown={onSplitKey}
-      />
-
       <main className="editor-pane">
         {prefs.focus && (
           <button className="focus-exit" onClick={() => setPrefs({ focus: false })}>{t('exitFocus')}</button>
         )}
-        {sidebarOff && !prefs.focus && (
+        {menuFloating && (
           <button className="icon-btn sidebar-show" title={t('showSidebar')} aria-label={t('showSidebar')} onClick={showSidebar}>
-            <Icon name="sidebar" />
+            <Icon name={drawer ? 'menu' : 'sidebar'} />
           </button>
         )}
         {!note ? (
@@ -768,6 +762,7 @@ export function App() {
               }}
               backlinks={backlinks}
               onOpenNote={(id) => { window.location.hash = `/note/${id}`; }}
+              onBack={phone ? goBack : undefined}
             />
             {isEncryptedHtml(note.content) && unlocked?.id !== note.id ? (
               <LockedNote content={note.content} onUnlock={(html, cipher) => setUnlocked({ id: note.id, html, cipher })} />
@@ -780,6 +775,29 @@ export function App() {
           </>
         )}
       </main>
+
+      {phone && (
+        <nav className="bottom-nav" aria-label={t('menu')}>
+          <button aria-current={view.kind === 'home' && !note ? 'page' : undefined} onClick={() => { setPhoneSearch(false); setView({ kind: 'home' }); select(null); }}>
+            <Icon name="home" size={22} /><span>{t('home')}</span>
+          </button>
+          <button
+            aria-current={phonePane === 'list' && !phoneSearch ? 'page' : undefined}
+            onClick={() => { setPhoneSearch(false); setView((v) => (v.kind === 'home' || v.kind === 'notebooks' ? { kind: 'all' } : v)); select(null); }}
+          >
+            <Icon name="notes" size={22} /><span>{t('notesTab')}</span>
+          </button>
+          <button className="bottom-new" aria-label={t('newNote')} title={t('newNote')} onClick={() => void createNote()}>
+            <Icon name="plus" size={24} />
+          </button>
+          <button aria-current={phoneSearch ? 'page' : undefined} onClick={openSearch}>
+            <Icon name="search" size={22} /><span>{t('searchTab')}</span>
+          </button>
+          <button aria-expanded={drawerOpen} onClick={() => setDrawerOpen(true)}>
+            <Icon name="menu" size={22} /><span>{t('more')}</span>
+          </button>
+        </nav>
+      )}
 
       {history && note && (
         <div className="modal-backdrop" onClick={() => setHistory(null)}>
@@ -840,9 +858,11 @@ interface MetaProps {
   onSaveTemplate: () => Promise<void>;
   backlinks: { id: string; title: string }[];
   onOpenNote: (id: string) => void;
+  /** Phones: the note fills the screen, and this goes back to where it was opened from. */
+  onBack?: () => void;
 }
 
-function NoteMeta({ note, notebooks, onPatch, onTrash, onRestore, onDelete, onHistory, onDuplicate, focus, onFocus, onSaveTemplate, backlinks, onOpenNote }: MetaProps) {
+function NoteMeta({ note, notebooks, onPatch, onTrash, onRestore, onDelete, onHistory, onDuplicate, focus, onFocus, onSaveTemplate, backlinks, onOpenNote, onBack }: MetaProps) {
   const [tagInput, setTagInput] = useState('');
   const trashed = note.trashedAt !== null;
 
@@ -854,6 +874,9 @@ function NoteMeta({ note, notebooks, onPatch, onTrash, onRestore, onDelete, onHi
 
   return (
     <div className="note-meta-bar">
+      {onBack && (
+        <button className="icon-btn back-btn" title={t('back')} aria-label={t('back')} onClick={onBack}><Icon name="back" /></button>
+      )}
       <select
         value={note.notebookId}
         disabled={trashed}
@@ -920,7 +943,7 @@ function NoteMeta({ note, notebooks, onPatch, onTrash, onRestore, onDelete, onHi
               onClick={() => void onPatch({ pinned: !note.pinned })}
             ><Icon name="pin" /></button>
             <button className="icon-btn" title={t('history')} aria-label={t('history')} onClick={() => void onHistory()}><Icon name="history" /></button>
-            <button className="icon-btn" title={focus ? t('exitFocus') : t('focusMode')} aria-label={t('focusMode')} aria-pressed={focus} onClick={onFocus}><Icon name="focus" /></button>
+            <button className="icon-btn focus-btn" title={focus ? t('exitFocus') : t('focusMode')} aria-label={t('focusMode')} aria-pressed={focus} onClick={onFocus}><Icon name="focus" /></button>
             <Popover icon="more" label={t('more')} align="right">
               <button onClick={() => void onDuplicate()}><Icon name="copy" size={16} />{t('duplicate')}</button>
               <button onClick={() => void onSaveTemplate()}><Icon name="template" size={16} />{t('saveTemplate')}</button>
