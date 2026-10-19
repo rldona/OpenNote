@@ -6,6 +6,12 @@ when a `v*` tag is pushed; the section of the tag becomes the release notes.
 
 ## [Unreleased]
 
+### Fixed
+- **Desktop app: "No se pudo buscar actualizaciones: GitHub answered 403".** The update check used GitHub's public API, which allows
+  only 60 requests an hour per internet address (shared by everyone behind the same router), so it could fail for no reason of its
+  own. Each release now publishes a small `latest.json` next to the installers and the app reads that, which is an ordinary file
+  download with no such limit. It also carries the size and SHA-256 of every installer.
+
 ## [0.4.1] - 2026-10-19
 
 ### Fixed

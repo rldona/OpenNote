@@ -51,7 +51,7 @@ ever signed: the build deliberately ignores any certificate in your keychain.
 - *Settings*: shows and changes the notes folder (default `~/.opennote`, the same one the command line version uses)
 
 - **Updates**: once a day (switch it off in *Settings*) and on demand from *Check for updates…* in the app, tray and
-  Settings, OpenNote reads the latest GitHub Release. If there is a newer one, a window offers **Update** or **Cancel**.
+  Settings, OpenNote reads `latest.json`, a small manifest published with every release (a plain file download, so it never hits GitHub's API rate limit). If there is a newer one, a window offers **Update** or **Cancel**.
   The installer for your system is downloaded from this repository's releases only and verified against the SHA-256 GitHub
   publishes for it. macOS: the app is staged, its signature checked, then swapped in place after quitting (the old copy is
   restored if anything fails); if the app sits somewhere it cannot replace itself (read-only folder, or run from the disk

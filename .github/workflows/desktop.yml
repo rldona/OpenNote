@@ -117,6 +117,9 @@ jobs:
           awk -v v="$version" '/^## \[/ { printing = index($0, "[" v "]") > 0; next } printing' CHANGELOG.md > release-notes.md
           if [ ! -s release-notes.md ]; then echo "No section [$version] in CHANGELOG.md"; exit 1; fi
           cat release-notes.md
+      # latest.json is what the app's updater reads. It is a plain file download, so it has no API rate limit.
+      - name: Update manifest (latest.json)
+        run: node desktop/scripts/make-update-manifest.mjs "${GITHUB_REF_NAME#v}" artifacts release-notes.md artifacts/latest.json
       - uses: softprops/action-gh-release@v3
         with:
           files: artifacts/*

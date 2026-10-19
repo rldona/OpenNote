@@ -5,18 +5,18 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
-  bundlePath, checkForUpdate, compareVersions, downloadAsset, isTransientLocation, macSwapScript, parseRelease, pickAsset,
+  bundlePath, checkForUpdate, compareVersions, downloadAsset, isTransientLocation, macSwapScript, parseManifest, pickAsset,
 } from '../../desktop/src/updater.js';
 
 const base = 'https://github.com/rldona/OpenNote/releases/download/v0.3.0/';
-const asset = (name: string, extra: Record<string, unknown> = {}) => ({ name, browser_download_url: base + name, size: 5, ...extra });
-const releaseJson = (over: Record<string, unknown> = {}) => ({
-  tag_name: 'v0.3.0', body: 'Notes', html_url: 'https://github.com/rldona/OpenNote/releases/tag/v0.3.0', draft: false, prerelease: false,
+const sha = (c: string) => c.repeat(64).slice(0, 64);
+const manifest = (over: Record<string, unknown> = {}) => ({
+  version: '0.3.0',
+  notes: 'Notes',
   assets: [
-    asset('OpenNote-0.3.0-mac-arm64.dmg'), asset('OpenNote-0.3.0-mac-x64.dmg'),
-    asset('OpenNote-0.3.0-win-x64.exe'), asset('OpenNote-0.3.0-win-arm64.exe'), asset('OpenNote-0.3.0-win.exe'),
-    asset('OpenNote-0.3.0-linux-amd64.deb'), asset('OpenNote-0.3.0-linux-arm64.deb'),
-  ],
+    'OpenNote-0.3.0-mac-arm64.dmg', 'OpenNote-0.3.0-mac-x64.dmg', 'OpenNote-0.3.0-win-x64.exe', 'OpenNote-0.3.0-win-arm64.exe',
+    'OpenNote-0.3.0-win.exe', 'OpenNote-0.3.0-linux-amd64.deb', 'OpenNote-0.3.0-linux-arm64.deb',
+  ].map((name) => ({ name, size: 5, sha256: sha('a') })),
   ...over,
 });
 const jsonResponse = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
@@ -30,16 +30,36 @@ describe('versions', () => {
   });
 });
 
-describe('release parsing', () => {
-  it('ignores drafts and prereleases', () => {
-    expect(parseRelease(releaseJson())?.version).toBe('0.3.0');
-    expect(parseRelease(releaseJson({ draft: true }))).toBeNull();
-    expect(parseRelease(releaseJson({ prerelease: true }))).toBeNull();
-    expect(parseRelease(null)).toBeNull();
+describe('update manifest', () => {
+  it('reads version, notes, sizes and checksums, and builds the download addresses itself', () => {
+    const r = parseManifest(manifest())!;
+    expect(r.version).toBe('0.3.0');
+    expect(r.pageUrl).toBe('https://github.com/rldona/OpenNote/releases/tag/v0.3.0');
+    const dmg = r.assets.find((a) => a.name.endsWith('mac-arm64.dmg'))!;
+    expect(dmg).toMatchObject({ url: `${base}OpenNote-0.3.0-mac-arm64.dmg`, size: 5, digest: `sha256:${sha('a')}` });
+  });
+
+  it('ignores addresses written in the file, odd file names and bad checksums', () => {
+    const r = parseManifest(manifest({
+      assets: [
+        { name: 'OpenNote-0.3.0-mac-arm64.dmg', size: 1, sha256: 'not-a-hash', url: 'https://evil.example/x.dmg' },
+        { name: '../evil.dmg', size: 1, sha256: sha('b') },
+        { name: 'a b.dmg', size: 1, sha256: sha('b') },
+      ],
+    }))!;
+    expect(r.assets.map((a) => a.name)).toEqual(['OpenNote-0.3.0-mac-arm64.dmg']);
+    expect(r.assets[0]!.url).toBe(`${base}OpenNote-0.3.0-mac-arm64.dmg`);
+    expect(r.assets[0]!.digest).toBeNull();
+  });
+
+  it('rejects anything that is not a plain x.y.z version', () => {
+    for (const bad of [null, 'text', {}, manifest({ version: 'latest' }), manifest({ version: '1.2' }), manifest({ version: '1.2.3-beta' })]) {
+      expect(parseManifest(bad)).toBeNull();
+    }
   });
 
   it('picks the installer for each platform and architecture', () => {
-    const r = parseRelease(releaseJson())!;
+    const r = parseManifest(manifest())!;
     expect(pickAsset(r, 'darwin', 'arm64')?.name).toBe('OpenNote-0.3.0-mac-arm64.dmg');
     expect(pickAsset(r, 'darwin', 'x64')?.name).toBe('OpenNote-0.3.0-mac-x64.dmg');
     expect(pickAsset(r, 'win32', 'x64')?.name).toBe('OpenNote-0.3.0-win-x64.exe');
@@ -49,21 +69,45 @@ describe('release parsing', () => {
     expect(pickAsset(r, 'freebsd', 'x64')).toBeNull();
   });
 
-  it('never picks an installer hosted somewhere else', () => {
-    const r = parseRelease(releaseJson({
-      assets: [{ name: 'OpenNote-0.3.0-mac-arm64.dmg', browser_download_url: 'https://evil.example/OpenNote-0.3.0-mac-arm64.dmg', size: 1 }],
-    }))!;
-    expect(pickAsset(r, 'darwin', 'arm64')).toBeNull();
+  it('is generated from the installers of a release, with their real size and SHA-256', async () => {
+    // @ts-ignore: a plain .mjs script run by CI, with no type declarations
+    const { buildManifest } = (await import('../../desktop/scripts/make-update-manifest.mjs')) as {
+      buildManifest: (v: string, dir: string, notes: string) => { version: string; notes: string; assets: { name: string; size: number; sha256: string }[] };
+    };
+    const dir = mkdtempSync(join(tmpdir(), 'manifest-'));
+    writeFileSync(join(dir, 'OpenNote-9.9.9-mac-arm64.dmg'), 'hello');
+    writeFileSync(join(dir, 'OpenNote-9.9.9-linux-amd64.deb'), 'world!');
+    writeFileSync(join(dir, 'notes.txt'), 'not an installer');
+    const m = buildManifest('9.9.9', dir, '  ## Added\n- things  \n');
+    expect(m.version).toBe('9.9.9');
+    expect(m.notes).toBe('## Added\n- things');
+    expect(m.assets.map((a) => a.name)).toEqual(['OpenNote-9.9.9-linux-amd64.deb', 'OpenNote-9.9.9-mac-arm64.dmg']);
+    expect(m.assets[1]).toMatchObject({ size: 5, sha256: createHash('sha256').update('hello').digest('hex') });
+    // and the app can read what the script wrote
+    expect(parseManifest(m)?.assets.length).toBe(2);
   });
 });
 
 describe('checking', () => {
+  it('reads the manifest from a plain file download, not from the rate-limited GitHub API', async () => {
+    const urls: string[] = [];
+    const get = async (url: string | URL | Request) => {
+      urls.push(String(url));
+      return jsonResponse(manifest());
+    };
+    expect((await checkForUpdate('0.2.0', get as typeof fetch)).status).toBe('available');
+    expect(urls[0]).toBe('https://github.com/rldona/OpenNote/releases/latest/download/latest.json');
+    expect(urls.some((u) => u.includes('api.github.com'))).toBe(false);
+  });
+
   it('reports a newer release, an up-to-date app and failures', async () => {
-    const newer = await checkForUpdate('0.2.0', async () => jsonResponse(releaseJson()));
+    const ok = async () => jsonResponse(manifest());
+    const newer = await checkForUpdate('0.2.0', ok);
     expect(newer.status).toBe('available');
-    expect((await checkForUpdate('0.3.0', async () => jsonResponse(releaseJson()))).status).toBe('uptodate');
-    expect((await checkForUpdate('0.4.0', async () => jsonResponse(releaseJson()))).status).toBe('uptodate');
-    expect((await checkForUpdate('0.2.0', async () => jsonResponse({}, 404))).status).toBe('error');
+    expect((await checkForUpdate('0.3.0', ok)).status).toBe('uptodate');
+    expect((await checkForUpdate('0.4.0', ok)).status).toBe('uptodate');
+    expect(await checkForUpdate('0.2.0', async () => jsonResponse({}, 404))).toEqual({ status: 'error', message: 'GitHub answered 404' });
+    expect((await checkForUpdate('0.2.0', async () => new Response('<html>', { status: 200 }))).status).toBe('error');
     expect((await checkForUpdate('0.2.0', async () => { throw new Error('offline'); })).status).toBe('error');
   });
 });

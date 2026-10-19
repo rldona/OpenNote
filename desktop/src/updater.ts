@@ -1,7 +1,7 @@
 /**
  * Update logic for the desktop app. No Electron imports, so it can be tested on its own.
  *
- * It reads the latest GitHub Release, compares versions, downloads the installer for this platform and checks its SHA-256
+ * It reads `latest.json`, a small manifest every release publishes next to its installers, compares versions, downloads the installer for this platform and checks its SHA-256
  * against the digest GitHub publishes for the asset. Installing is platform specific (see `main.ts`):
  * macOS swaps the app bundle in place (`macSwapScript`), Windows runs the NSIS installer silently, Linux opens the .deb.
  */
@@ -17,7 +17,11 @@ import { promisify } from 'node:util';
 const run = promisify(execFile);
 
 export const REPO = 'rldona/OpenNote';
-const API = `https://api.github.com/repos/${REPO}/releases/latest`;
+/**
+ * GitHub redirects this address to the manifest of the newest release. It is an ordinary file download, so unlike the REST API
+ * (60 requests an hour per IP address, shared by everyone behind the same router) it is not rate limited.
+ */
+const MANIFEST_URL = `https://github.com/${REPO}/releases/latest/download/latest.json`;
 /** Installers only ever come from this release path of our repository. */
 const DOWNLOAD_PREFIX = `https://github.com/${REPO}/releases/download/`;
 
@@ -53,23 +57,29 @@ export function compareVersions(a: string, b: string): number {
   return 0;
 }
 
-export function parseRelease(json: unknown): Release | null {
+/**
+ * Reads latest.json: { version, notes, assets: [{ name, size, sha256 }] } (written by desktop/scripts/make-update-manifest.mjs).
+ * Download addresses are built here from the version and file name, never taken from the file.
+ */
+export function parseManifest(json: unknown): Release | null {
   if (typeof json !== 'object' || json === null) return null;
-  const r = json as Record<string, unknown>;
-  if (typeof r.tag_name !== 'string' || r.draft === true || r.prerelease === true) return null;
-  const assets = Array.isArray(r.assets) ? r.assets : [];
+  const m = json as Record<string, unknown>;
+  if (typeof m.version !== 'string' || !/^\d+\.\d+\.\d+$/.test(m.version)) return null;
+  const version = m.version;
+  const assets = Array.isArray(m.assets) ? m.assets : [];
   return {
-    version: r.tag_name.replace(/^v/i, ''),
-    notes: typeof r.body === 'string' ? r.body : '',
-    pageUrl: typeof r.html_url === 'string' ? r.html_url : `https://github.com/${REPO}/releases`,
+    version,
+    notes: typeof m.notes === 'string' ? m.notes : '',
+    pageUrl: `https://github.com/${REPO}/releases/tag/v${version}`,
     assets: assets.flatMap((a): ReleaseAsset[] => {
       const x = a as Record<string, unknown>;
-      if (typeof x.name !== 'string' || typeof x.browser_download_url !== 'string') return [];
+      if (typeof x.name !== 'string' || !/^[\w.-]+$/.test(x.name)) return [];
+      const sha = typeof x.sha256 === 'string' && /^[0-9a-f]{64}$/i.test(x.sha256) ? x.sha256.toLowerCase() : null;
       return [{
         name: x.name,
-        url: x.browser_download_url,
+        url: `${DOWNLOAD_PREFIX}v${version}/${x.name}`,
         size: typeof x.size === 'number' ? x.size : 0,
-        digest: typeof x.digest === 'string' && /^sha256:[0-9a-f]{64}$/i.test(x.digest) ? x.digest.toLowerCase() : null,
+        digest: sha ? `sha256:${sha}` : null,
       }];
     }),
   };
@@ -88,13 +98,15 @@ export function pickAsset(release: Release, platform: NodeJS.Platform, arch: str
 
 export async function checkForUpdate(current: string, fetchImpl: typeof fetch = fetch): Promise<CheckResult> {
   try {
-    const res = await fetchImpl(API, {
-      headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'OpenNote-updater' },
+    const res = await fetchImpl(MANIFEST_URL, {
+      headers: { 'User-Agent': 'OpenNote-updater' },
+      redirect: 'follow',
+      cache: 'no-store',
       signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) return { status: 'error', message: `GitHub answered ${res.status}` };
-    const release = parseRelease(await res.json());
-    if (!release) return { status: 'error', message: 'Unexpected answer from GitHub' };
+    const release = parseManifest(await res.json().catch(() => null));
+    if (!release) return { status: 'error', message: 'The update information is not readable' };
     return compareVersions(release.version, current) > 0 ? { status: 'available', current, release } : { status: 'uptodate', current };
   } catch (err) {
     return { status: 'error', message: err instanceof Error ? err.message : String(err) };
