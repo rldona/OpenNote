@@ -50,6 +50,17 @@ export async function bootStandalone(): Promise<void> {
       worker.postMessage(req, req.body ? [req.body] : []);
     });
     navigator.serviceWorker.controller?.postMessage({ type: 'owner' });
+    // Diagnostic for this browser: `await opennoteSelfTest()` in the console runs two simulated devices through the sync
+    // engine on throw-away databases (see selftest.ts).
+    (window as unknown as { opennoteSelfTest: () => Promise<unknown> }).opennoteSelfTest = () =>
+      new Promise((resolve) => {
+        worker.addEventListener('message', function done(e: MessageEvent<{ type: string; result?: unknown }>) {
+          if (e.data?.type !== 'selftest-result') return;
+          worker.removeEventListener('message', done);
+          resolve(e.data.result);
+        });
+        worker.postMessage({ type: 'selftest' });
+      });
     // The controller can change (service worker update): tell the new one too.
     navigator.serviceWorker.addEventListener('controllerchange', () => navigator.serviceWorker.controller?.postMessage({ type: 'owner' }));
   }

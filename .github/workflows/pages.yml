@@ -1,0 +1,39 @@
+# Publishes the browser build (OpenNote running entirely in the browser, no server) to GitHub Pages:
+# https://rldona.github.io/OpenNote/ . Notes stay in each visitor's own browser; nothing is stored on GitHub.
+name: Pages
+
+on:
+  push:
+    branches: [main]
+    paths: ['web/**', 'server/**', 'package.json', 'package-lock.json', '.github/workflows/pages.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build:standalone -w web
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: web/dist-standalone
+      - id: deployment
+        uses: actions/deploy-pages@v5

@@ -133,7 +133,15 @@ class Codec {
   }
 }
 
-const deriveKey = (passphrase: string, salt: Buffer) => scryptSync(passphrase, salt, 32, { N: 2 ** 15, r: 8, p: 1, maxmem: 128 * 1024 * 1024 });
+let lastKey: { id: string; key: Buffer } | null = null;
+/** scrypt is deliberately slow (a second or more in the browser), so the key of the last passphrase+salt is kept in memory. */
+function deriveKey(passphrase: string, salt: Buffer): Buffer {
+  const id = `${salt.toString('base64')}:${passphrase}`;
+  if (lastKey?.id === id) return lastKey.key;
+  const key = scryptSync(passphrase, salt, 32, { N: 2 ** 15, r: 8, p: 1, maxmem: 128 * 1024 * 1024 });
+  lastKey = { id, key };
+  return key;
+}
 
 // ------------------------------------------------------------------- helpers
 

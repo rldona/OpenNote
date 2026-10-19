@@ -458,7 +458,10 @@ export function App() {
         </nav>
         <div className="sidebar-foot">
           <div className="foot-actions">
-            <button className="icon-btn" title={t('sync')} aria-label={t('sync')} onClick={() => setShowSync(true)}><Icon name="sync" /></button>
+            {/* The folder-path sync needs the local server; the browser-only build gets sync destinations later. */}
+            {!__STANDALONE__ && (
+              <button className="icon-btn" title={t('sync')} aria-label={t('sync')} onClick={() => setShowSync(true)}><Icon name="sync" /></button>
+            )}
             <Popover icon="download" label={t('data')}>
               <button onClick={() => importInput.current?.click()}><Icon name="upload" size={16} />{t('importEnex')}</button>
               <button onClick={() => importFilesInput.current?.click()}><Icon name="upload" size={16} />{t('importFiles')}</button>

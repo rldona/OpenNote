@@ -17,8 +17,10 @@ import type { ApiRequest, ApiResponse, WorkerStatus } from './protocol';
 const ctx = self as unknown as { postMessage(message: unknown, transfer?: Transferable[]): void };
 const status = (s: WorkerStatus) => ctx.postMessage(s);
 
+let sqlite3: any;
+
 async function open() {
-  const sqlite3 = await (sqlite3InitModule as unknown as (o: object) => Promise<any>)({ print() {}, printErr() {} });
+  sqlite3 = await (sqlite3InitModule as unknown as (o: object) => Promise<any>)({ print() {}, printErr() {} });
   const pool = await sqlite3.installOpfsSAHPoolVfs({ name: 'opennote' });
   const db = wasmDatabase(new pool.OpfsSAHPoolDb('/opennote.db') as WasmDb);
   initSchema(db);
@@ -38,8 +40,12 @@ void navigator.locks.request('opennote-db', { ifAvailable: true }, async (lock) 
     return status({ type: 'failed', message: err instanceof Error ? err.message : String(err) });
   }
 
-  self.onmessage = async (event: MessageEvent<ApiRequest>) => {
+  self.onmessage = async (event: MessageEvent<ApiRequest | { type: 'selftest' }>) => {
     const m = event.data;
+    if (m?.type === 'selftest') {
+      const { selfTest } = await import('./selftest');
+      return ctx.postMessage({ type: 'selftest-result', result: await selfTest(sqlite3) });
+    }
     if (m?.type !== 'request') return;
     let reply: ApiResponse;
     try {

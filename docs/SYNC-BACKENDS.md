@@ -29,7 +29,7 @@ ETag, md5…) so the engine skips files it has already parsed. A shared contract
 | 0 | Transport interface; folder sync on top of it; in-memory transport and contract tests | **done** |
 | 1a | **SQL driver and attachment storage abstracted** under `NoteStore`; the whole server test suite also runs on sqlite-wasm | **done** |
 | 1b | Run OpenNote **without a local server**, entirely in the browser | **done** (not hosted yet) |
-| 1c | Host the browser build (GitHub Pages) and make it installable; sync inside the browser build (needs the sync cipher on WebCrypto) | next |
+| 1c | Browser build hosted on GitHub Pages; sync engine and cipher run in the browser | **done** |
 | 2 | `GoogleDriveTransport` + "Sign in with Google" | |
 | 3 | Settings UI: add / remove sync destinations; per-destination passphrase; desktop uses the same transport | |
 | 4 | Android: installable PWA first; a Capacitor shell only if the PWA falls short | |
@@ -74,12 +74,22 @@ ETag, md5…) so the engine skips files it has already parsed. A shared contract
   sharing the same data. Not covered: Firefox and Safari (OPFS SAH pool and service workers differ), other tabs after the owner
   closes, very large attachments. The in-app browser of the desktop tool cannot register service workers, so it cannot run this build.
 
-### Phase 1c: what is left before this is a product
+### Phase 1c (done): hosted, and the sync engine runs in the browser
 
-- Hosting (GitHub Pages) and an install prompt; a clear message when the browser lacks service workers / Web Locks / OPFS.
-- Sync inside the browser build: the engine's cipher (`createCipheriv`, `scryptSync`, `createHmac`) must move to WebCrypto, which
-  is asynchronous, so the codec becomes async.
-- Remove the first-load wait for the service worker to take control (currently up to 3 s on the very first visit).
+- **Hosting**: `.github/workflows/pages.yml` builds the browser build on every push to `main` that touches the web or server
+  code and publishes it to GitHub Pages: **https://rldona.github.io/OpenNote/** . Static files only; notes never reach GitHub.
+- **Sync engine in the browser**: the engine is unchanged. `shims/crypto.ts` now also provides AES-256-GCM, HMAC-SHA256,
+  scrypt and constant-time compare (`@noble/ciphers`, `@noble/hashes`), synchronous and **byte-for-byte compatible with Node**
+  (tests encrypt on one side and decrypt on the other, and compare scrypt output with the same parameters the sync folder
+  uses), so a store written by the desktop app can be read in the browser and the other way round.
+- **Diagnostic**: `await opennoteSelfTest()` in the browser console runs two simulated devices (throw-away in-memory databases)
+  through the engine with a passphrase, an attachment, an edit and a check that the stored files hold no plain text. In Chrome
+  it passes (about 3.7 s the first time, before the derived key was cached).
+- The derived sync key is now cached in memory (scrypt costs about a second in JavaScript).
+- **No destination yet in the browser**: the folder-path sync panel needs a Node server, so the sync button is hidden in the
+  browser build until a destination exists (Google Drive, phase 2).
+- Still open: Firefox and Safari checks; a friendlier message when a browser lacks service workers, Web Locks or OPFS; the up to
+  3 s wait for the service worker on the very first visit.
 
 ### Design notes for phase 1b (original plan)
 

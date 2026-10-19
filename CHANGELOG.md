@@ -7,6 +7,9 @@ when a `v*` tag is pushed; the section of the tag becomes the release notes.
 ## [Unreleased]
 
 ### Added
+- **Web version at https://rldona.github.io/OpenNote/** (GitHub Pages): the whole app in your browser, with no server and no
+  account. Your notes are stored in that browser, on that device. Installable as an app from the browser menu. It does not sync
+  yet; that is the next step.
 - **OpenNote can run entirely in a browser, with no server** (`npm run build:standalone`, static files in
   `web/dist-standalone`). Same interface and same code: the database (SQLite compiled to WebAssembly) and the notes live in the
   browser's own storage. Not published anywhere yet; this is the groundwork for opening your notes on a phone or tablet.

@@ -1,3 +1,4 @@
+import * as nodeCrypto from 'node:crypto';
 import { createHash as nodeHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { MemoryBlobStore } from '../src/blobs.js';
@@ -5,6 +6,7 @@ import { SqlBlobStore } from '../src/blobs-sql.js';
 import { createApp } from '../src/app.js';
 import { NoteStore } from '../src/store.js';
 import { openTestDb } from './helpers.js';
+import * as shim from '../../web/src/standalone/shims/crypto.js';
 import { createHash, randomBytes, randomUUID } from '../../web/src/standalone/shims/crypto.js';
 
 describe('browser crypto stand-in', () => {
@@ -22,6 +24,54 @@ describe('browser crypto stand-in', () => {
     expect(randomUUID()).toMatch(/^[0-9a-f-]{36}$/);
     expect(randomBytes(16).length).toBe(16);
     expect(() => createHash('sha512')).toThrow(/not available/);
+  });
+});
+
+describe('browser cipher stand-ins produce and accept Node\'s bytes', () => {
+  const key = nodeCrypto.randomBytes(32);
+  const iv = nodeCrypto.randomBytes(12);
+  const plain = Buffer.from('nota cifrada con café ☕'.repeat(500));
+
+  type Crypto = Pick<typeof nodeCrypto, 'createCipheriv' | 'createDecipheriv'> | typeof shim;
+  const cipherOf = (c: Crypto) => c.createCipheriv('aes-256-gcm', key, iv) as { update(d: Buffer): Buffer; final(): Buffer; getAuthTag(): Buffer };
+  const decipherOf = (c: Crypto) => c.createDecipheriv('aes-256-gcm', key, iv) as { setAuthTag(t: Buffer): void; update(d: Buffer): Buffer; final(): Buffer };
+
+  function seal(c: Crypto, data: Buffer) {
+    const cipher = cipherOf(c);
+    const body = Buffer.concat([cipher.update(data), cipher.final()]);
+    return { body, tag: cipher.getAuthTag() };
+  }
+  function open(c: Crypto, body: Buffer, tag: Buffer) {
+    const d = decipherOf(c);
+    d.setAuthTag(tag);
+    return Buffer.concat([d.update(body), d.final()]);
+  }
+
+  it('AES-256-GCM: identical output, and each side decrypts the other', () => {
+    const a = seal(nodeCrypto, plain);
+    const b = seal(shim, plain);
+    expect(b.body.equals(a.body)).toBe(true);
+    expect(b.tag.equals(a.tag)).toBe(true);
+    expect(open(shim, a.body, a.tag).equals(plain)).toBe(true);
+    expect(open(nodeCrypto, b.body, b.tag).equals(plain)).toBe(true);
+    expect(seal(shim, Buffer.alloc(0)).body.length).toBe(0);
+  });
+
+  it('rejects tampered data and a wrong key', () => {
+    const { body, tag } = seal(shim, plain);
+    const bad = Buffer.from(body);
+    bad[10] = bad[10]! ^ 1;
+    expect(() => open(shim, bad, tag)).toThrow();
+    expect(() => open(shim, body, Buffer.alloc(16))).toThrow();
+  });
+
+  it('HMAC-SHA256 and scrypt match Node (same parameters the sync folder uses)', () => {
+    const salt = nodeCrypto.randomBytes(16);
+    const opts = { N: 2 ** 15, r: 8, p: 1, maxmem: 128 * 1024 * 1024 };
+    expect(shim.scryptSync('correct horse', salt, 32, opts).equals(nodeCrypto.scryptSync('correct horse', salt, 32, opts))).toBe(true);
+    expect(shim.createHmac('sha256', key).update('abc').digest('hex')).toBe(nodeCrypto.createHmac('sha256', key).update('abc').digest('hex'));
+    expect(shim.timingSafeEqual(Buffer.from('ab'), Buffer.from('ab'))).toBe(true);
+    expect(shim.timingSafeEqual(Buffer.from('ab'), Buffer.from('ac'))).toBe(false);
   });
 });
 

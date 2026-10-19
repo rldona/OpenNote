@@ -19,6 +19,12 @@ Installers for **macOS (.dmg)**, **Windows (.exe)** and **Linux (.deb)** are bui
 [desktop/README.md](desktop/README.md) (they are unsigned, so the first launch shows a system warning that file explains how to bypass).
 They add a tray icon, a global **quick note** shortcut and native reminders, and use the same `~/.opennote` data.
 
+## Use it in the browser (no install)
+
+**https://rldona.github.io/OpenNote/** runs the whole app inside your browser: no account, no server. Notes are stored in that
+browser on that device (it can be installed as an app from the browser menu). Use a current Chrome or Edge; Firefox and Safari
+are untested. Syncing between devices is not available in this version yet.
+
 ## Quick start
 
 Requires Node.js 24+ (uses the built-in `node:sqlite` with FTS5).
