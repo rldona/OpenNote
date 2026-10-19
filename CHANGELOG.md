@@ -28,6 +28,15 @@ when a `v*` tag is pushed; the section of the tag becomes the release notes.
 - **Tablets in landscape and small laptops** (1024–1279 px) show a rail of icons (new note, search, Home, All notes, Pinned,
   Tasks, Reminders, Notebooks, Trash, Sync) instead of the full sidebar, which opens from the rail as a drawer. The note gets
   about 160 px more width.
+- **Sidebar.** A **Shortcuts** section lists pinned notes and saved searches. Stacks come before loose notebooks, with their
+  notebooks indented under them, and fold with a click; Shortcuts, Notebooks and Tags fold too, and what you fold is remembered.
+  Tags show the five most used, with **Show all** for the full tree. When sync is on, the footer says when it last ran ("Synced
+  3 minutes ago", or a problem) and opens the sync panel.
+- **New note ▾** replaces the template picker next to New note: a blank note or any of your templates.
+- **Note list header** shows how many notes are in the list and has a **+** that creates the note in the notebook or tag you are
+  looking at. Below it, filter chips narrow the list: open tasks, attachments, reminder, updated this week.
+- **Phones:** dialogs (history, sync, link to note, prompts…) and menus (sort, ⋯, appearance) open as sheets from the bottom of
+  the screen, with larger rows.
 
 ## [0.4.3] - 2026-10-19
 

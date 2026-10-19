@@ -15,11 +15,13 @@ export interface Prefs {
   sidebarHidden: boolean;
   /** Hides the sidebar and the note list, leaving only the editor. */
   focus: boolean;
+  /** Sidebar sections folded by hand: 'shortcuts', 'notebooks', 'tags' or `stack:<name>`. */
+  collapsed: string[];
 }
 
 export const ACCENTS: Accent[] = ['green', 'blue', 'violet', 'orange', 'pink'];
 
-const defaults: Prefs = { theme: 'system', accent: 'green', density: 'comfortable', sort: 'updated', sidebarHidden: false, focus: false };
+const defaults: Prefs = { theme: 'system', accent: 'green', density: 'comfortable', sort: 'updated', sidebarHidden: false, focus: false, collapsed: [] };
 const KEY = 'opennote.prefs';
 
 const oneOf = <T extends string>(value: unknown, allowed: readonly T[], fallback: T): T =>
@@ -35,6 +37,7 @@ function load(): Prefs {
       sort: oneOf(raw.sort, ['updated', 'created', 'title'], defaults.sort),
       sidebarHidden: raw.sidebarHidden === true,
       focus: raw.focus === true,
+      collapsed: Array.isArray(raw.collapsed) ? raw.collapsed.filter((x): x is string => typeof x === 'string').slice(0, 200) : [],
       // Older versions also saved `split` (list above editor in narrow windows); it is dropped on the next save.
     };
   } catch {

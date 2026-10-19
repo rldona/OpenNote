@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { api, type Task, type Note, type NoteSummary, type Notebook, type SavedSearch, type TagCount, type Version } from './api';
+import { api, type SyncStatus, type Task, type Note, type NoteSummary, type Notebook, type SavedSearch, type TagCount, type Version } from './api';
 import { AttachmentsPanel } from './Attachments';
 import { Home } from './Home';
 import { NoteEditor } from './Editor';
@@ -14,12 +14,24 @@ import { useLayout } from './layout';
 import { isEncryptedHtml, type NoteCipher } from './crypto';
 import { locale, t } from './i18n';
 
+/** Tags listed in the sidebar before "Show all". */
+const TOP_TAGS = 5;
+
 const same = (a: View, b: View) => JSON.stringify(a) === JSON.stringify(b);
 
 const toLocalInput = (ms: number | null) => {
   if (!ms) return '';
   const d = new Date(ms - new Date(ms).getTimezoneOffset() * 60000);
   return d.toISOString().slice(0, 16);
+};
+
+/** "5 minutes ago", "yesterday"… in the interface language. */
+const ago = (ms: number) => {
+  const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
+  const min = Math.round((ms - Date.now()) / 60000);
+  if (min > -60) return rtf.format(min, 'minute');
+  const h = Math.round(min / 60);
+  return h > -24 ? rtf.format(h, 'hour') : rtf.format(Math.round(h / 24), 'day');
 };
 
 const fmtDate = (ms: number) =>
@@ -39,6 +51,12 @@ export function App() {
   const [note, setNote] = useState<Note | null>(null);
   const [rev, setRev] = useState(0);
   const [templates, setTemplates] = useState<NoteSummary[]>([]);
+  const [pinnedNotes, setPinnedNotes] = useState<NoteSummary[]>([]);
+  /** Quick filters above the note list, added to the search as operators (see parseQuery on the server). */
+  const [filters, setFilters] = useState<string[]>([]);
+  const [allTags, setAllTags] = useState(false);
+  const [syncInfo, setSyncInfo] = useState<{ on: boolean; status: SyncStatus | null }>({ on: false, status: null });
+  const [, setClock] = useState(0);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [backlinks, setBacklinks] = useState<{ id: string; title: string }[]>([]);
   const [toast, setToast] = useState<string | null>(null);
@@ -90,10 +108,11 @@ export function App() {
   }, [query]);
 
   const refreshMeta = useCallback(async () => {
-    const [nb, tg, ss] = await Promise.all([api.notebooks(), api.tags(), api.searches()]);
+    const [nb, tg, ss, pn] = await Promise.all([api.notebooks(), api.tags(), api.searches(), api.notes({ pinned: true })]);
     setNotebooks(nb);
     setTags(tg);
     setSearches(ss);
+    setPinnedNotes(pn);
     setTemplates(await api.templates());
   }, []);
 
@@ -104,7 +123,7 @@ export function App() {
     }
     setNotes(
       await api.notes({
-        q: debouncedQuery,
+        q: [debouncedQuery, ...filters].join(' ').trim(),
         notebook: view.kind === 'notebook' ? view.id : undefined,
         tag: view.kind === 'tag' ? view.name : undefined,
         trashed: view.kind === 'trash',
@@ -112,7 +131,25 @@ export function App() {
         reminders: view.kind === 'reminders',
       }),
     );
-  }, [view, debouncedQuery, taskStatus]);
+  }, [view, debouncedQuery, filters, taskStatus]);
+
+  // Filters belong to the list they were picked on.
+  useEffect(() => setFilters([]), [view]);
+
+  // Sync state for the sidebar footer, refreshed now and then and after each sync; the clock keeps "3 min ago" current.
+  const refreshSync = useCallback(async () => {
+    try {
+      const [cfg, status] = await Promise.all([api.syncConfig(), api.syncStatus()]);
+      setSyncInfo({ on: cfg.enabled && (!!cfg.folder || cfg.remote), status });
+    } catch {
+      /* not available in this build or the server is down: the footer keeps saying the notes are stored locally */
+    }
+  }, []);
+  useEffect(() => {
+    void refreshSync();
+    const id = setInterval(() => { void refreshSync(); setClock((c) => c + 1); }, 60_000);
+    return () => clearInterval(id);
+  }, [refreshSync]);
 
   useEffect(() => void refreshMeta(), [refreshMeta]);
 
@@ -271,6 +308,12 @@ export function App() {
     await Promise.all([refreshList(), refreshMeta()]);
     select(created.id);
   };
+  const fromTemplate = async (id: string) => {
+    setDrawerOpen(false);
+    const created = await api.useTemplate(id, view.kind === 'notebook' ? view.id : undefined);
+    await Promise.all([refreshList(), refreshMeta()]);
+    select(created.id);
+  };
   const createNoteRef = useRef(createNote);
   createNoteRef.current = createNote;
 
@@ -369,8 +412,25 @@ export function App() {
   const stacks = useMemo(() => {
     const map = new Map<string, Notebook[]>();
     for (const nb of notebooks) map.set(nb.stack ?? '', [...(map.get(nb.stack ?? '') ?? []), nb]);
-    return [...map.entries()];
+    // Stacks first, so their notebooks never read as part of the loose notebook above them.
+    return [...map.entries()].sort(([a], [b]) => Number(!a) - Number(!b) || a.localeCompare(b, locale, { sensitivity: 'base' }));
   }, [notebooks]);
+
+  const folded = (key: string) => prefs.collapsed.includes(key);
+  const toggleFold = (key: string) =>
+    setPrefs({ collapsed: folded(key) ? prefs.collapsed.filter((k) => k !== key) : [...prefs.collapsed, key] });
+  /** A sidebar section heading that folds its section; `open` (notebooks) also makes the name a link to the overview. */
+  const sectionToggle = (key: string, label: string, open?: () => void) => (
+    <span className="section-toggle">
+      <button className="fold" aria-expanded={!folded(key)} aria-label={`${label}: ${folded(key) ? '▸' : '▾'}`} onClick={() => toggleFold(key)}>
+        {folded(key) ? '▸' : '▾'}
+      </button>
+      {open ? <button className="section-link" onClick={open}>{label}</button> : <button className="section-link" onClick={() => toggleFold(key)}>{label}</button>}
+    </span>
+  );
+  const visibleTags = tags.filter((tg) => !tg.virtual || tg.total > 0);
+  const visibleTagCount = visibleTags.length;
+  const topTags = useMemo(() => [...visibleTags].filter((tg) => !tg.virtual).sort((a, b) => b.total - a.total).slice(0, TOP_TAGS), [tags]);
 
   const navItem = (
     v: View,
@@ -535,24 +595,14 @@ export function App() {
         </div>
         <div className="new-row">
           <button className="primary new-note with-icon" onClick={() => void createNote()}><Icon name="plus" size={16} />{t('newNote')}</button>
-          {templates.length > 0 && (
-            <select
-              className="template-select"
-              aria-label={t('fromTemplate')}
-              title={t('fromTemplate')}
-              value=""
-              onChange={async (e) => {
-                const id = e.target.value;
-                if (!id) return;
-                const created = await api.useTemplate(id, view.kind === 'notebook' ? view.id : undefined);
-                await Promise.all([refreshList(), refreshMeta()]);
-                select(created.id);
-              }}
-            >
-              <option value="">{t('fromTemplate')}</option>
-              {templates.map((tp) => <option key={tp.id} value={tp.id}>{tp.title}</option>)}
-            </select>
-          )}
+          <Popover icon="caret" label={t('newNoteMenu')} className="new-more">
+            <button onClick={() => void createNote()}><Icon name="notes" size={16} />{t('blankNote')}</button>
+            <div className="panel-label">{t('fromTemplate').replace(/…$/, '')}</div>
+            {templates.length === 0 && <p className="panel-note">{t('noTemplates')}</p>}
+            {templates.map((tp) => (
+              <button key={tp.id} onClick={() => void fromTemplate(tp.id)}><Icon name="template" size={16} />{tp.title || t('untitled')}</button>
+            ))}
+          </Popover>
         </div>
         {searchField(searchInput, () => setDrawerOpen(false))}
         <nav>
@@ -562,38 +612,71 @@ export function App() {
           {navItem({ kind: 'tasks' }, t('tasks'), undefined, undefined, 0, undefined, 'tasks')}
           {navItem({ kind: 'reminders' }, t('reminders'), undefined, undefined, 0, undefined, 'bell')}
 
+          {(pinnedNotes.length > 0 || searches.length > 0) && (
+            <>
+              <div className="section-title">{sectionToggle('shortcuts', t('shortcutsSection'))}</div>
+              {!folded('shortcuts') && (
+                <>
+                  {pinnedNotes.slice(0, 12).map((n) => (
+                    <div className={`nav-item ${n.id === selectedId ? 'active' : ''}`} key={n.id}>
+                      <button className="nav-label" onClick={() => { select(n.id); setDrawerOpen(false); }}>
+                        <span className="nav-text"><Icon name="pin" size={16} /><span>{n.title || t('untitled')}</span></span>
+                      </button>
+                    </div>
+                  ))}
+                  {searches.map((sv) => (
+                    <div className="nav-item" key={sv.id}>
+                      <button className="nav-label" onClick={() => { startSearch(sv.query); setView({ kind: 'all' }); select(null); setDrawerOpen(false); }}>
+                        <span className="nav-text"><Icon name="search" size={16} /><span>{sv.name}</span></span>
+                      </button>
+                      <span className="row-actions">
+                        <button aria-label={`${t('delete')} ${sv.name}`} onClick={async () => { await api.deleteSearch(sv.id); void refreshMeta(); }}><Icon name="close" size={13} /></button>
+                      </span>
+                    </div>
+                  ))}
+                </>
+              )}
+            </>
+          )}
+
           <div className="section-title">
-            <button className="section-link" onClick={() => { setView({ kind: 'notebooks' }); select(null); }}>{t('notebooks')}</button>
+            {sectionToggle('notebooks', t('notebooks'), () => { setView({ kind: 'notebooks' }); select(null); setDrawerOpen(false); })}
             <button className="icon-btn" title={t('newNotebook')} aria-label={t('newNotebook')} onClick={() => void askNewNotebook()}>
               <Icon name="plus" size={14} />
             </button>
           </div>
-          {stacks.map(([stack, items]) => (
+          {!folded('notebooks') && stacks.map(([stack, items]) => (
             <div key={stack}>
-              {stack && <div className="stack-name"><Icon name="folder" size={13} />{stack}</div>}
-              {items.map((nb) => navItem({ kind: 'notebook', id: nb.id }, nb.name, nb.noteCount, nbActions(nb), 0, undefined, 'notebook'))}
+              {stack && (
+                <button className="stack-name" aria-expanded={!folded(`stack:${stack}`)} onClick={() => toggleFold(`stack:${stack}`)}>
+                  <span className="fold" aria-hidden="true">{folded(`stack:${stack}`) ? '▸' : '▾'}</span>
+                  <Icon name="folder" size={14} /><span>{stack}</span>
+                  <span className="count">{items.reduce((n, nb) => n + nb.noteCount, 0)}</span>
+                </button>
+              )}
+              {!(stack && folded(`stack:${stack}`)) &&
+                items.map((nb) => navItem({ kind: 'notebook', id: nb.id }, nb.name, nb.noteCount, nbActions(nb), stack ? 1 : 0, undefined, 'notebook'))}
             </div>
           ))}
 
-          {tags.length > 0 && <div className="section-title"><span>{t('tags')}</span></div>}
-          <TagTree
-            tags={tags}
-            render={(tg, label, indent, toggle) =>
-              navItem({ kind: 'tag', name: tg.name }, label, tg.total, undefined, indent, toggle, 'tag')
-            }
-          />
-
-          {searches.length > 0 && <div className="section-title"><span>{t('savedSearches')}</span></div>}
-          {searches.map((s) => (
-            <div className="nav-item" key={s.id}>
-              <button className="nav-label" onClick={() => { startSearch(s.query); setView({ kind: 'all' }); setDrawerOpen(false); }}>
-                <span className="nav-text"><Icon name="search" size={16} /><span>{s.name}</span></span>
-              </button>
-              <span className="row-actions">
-                <button aria-label={`${t('delete')} ${s.name}`} onClick={async () => { await api.deleteSearch(s.id); void refreshMeta(); }}><Icon name="close" size={13} /></button>
-              </span>
-            </div>
-          ))}
+          {tags.length > 0 && <div className="section-title">{sectionToggle('tags', t('tags'))}</div>}
+          {tags.length > 0 && !folded('tags') && (
+            allTags ? (
+              <TagTree
+                tags={tags}
+                render={(tg, label, indent, toggle) =>
+                  navItem({ kind: 'tag', name: tg.name }, label, tg.total, undefined, indent, toggle, 'tag')
+                }
+              />
+            ) : (
+              topTags.map((tg) => navItem({ kind: 'tag', name: tg.name }, tg.name, tg.total, undefined, 0, <span className="twisty" />, 'tag'))
+            )
+          )}
+          {tags.length > 0 && !folded('tags') && visibleTagCount > TOP_TAGS && (
+            <button className="more-link" onClick={() => setAllTags((v) => !v)}>
+              {allTags ? t('showFewerTags') : t('showAllTags', { n: visibleTagCount })}
+            </button>
+          )}
 
           <div className="section-title" />
           {navItem({ kind: 'trash' }, t('trash'), undefined, undefined, 0, undefined, 'trash')}
@@ -613,7 +696,17 @@ export function App() {
           </div>
           <input ref={importFilesInput} type="file" accept=".md,.markdown,.html,.htm,.zip" multiple hidden onChange={importFilesChanged} />
           <input ref={importInput} type="file" accept=".enex,.xml" hidden onChange={importEnexChanged} />
-          <small><Icon name="lock" size={12} /> {t('local')}</small>
+          {syncInfo.on && syncInfo.status?.running ? (
+            <small><Icon name="sync" size={12} /> {t('syncingNow')}</small>
+          ) : syncInfo.on && syncInfo.status && !syncInfo.status.ok && syncInfo.status.lastRunAt ? (
+            <button className="sync-line error" onClick={() => setShowSync(true)}><Icon name="sync" size={12} /> {t('syncProblem')}</button>
+          ) : syncInfo.on && syncInfo.status?.lastRunAt ? (
+            <button className="sync-line" onClick={() => setShowSync(true)} title={new Date(syncInfo.status.lastRunAt).toLocaleString(locale)}>
+              <Icon name="sync" size={12} /> {t('syncedWhen', { when: ago(syncInfo.status.lastRunAt) })}
+            </button>
+          ) : (
+            <small><Icon name="lock" size={12} /> {t('local')}</small>
+          )}
         </div>
       </aside>
 
@@ -641,8 +734,14 @@ export function App() {
               <Icon name={drawer ? 'menu' : 'sidebar'} />
             </button>
           )}
-          <h2>{title}</h2>
+          <div className="list-title">
+            <h2>{title}</h2>
+            {view.kind !== 'tasks' && <small>{shownNotes.length === 1 ? t('noteCountOne') : t('notesCount', { n: shownNotes.length })}</small>}
+          </div>
           <div className="list-tools">
+            {view.kind !== 'trash' && view.kind !== 'tasks' && (
+              <button className="icon-btn list-new" title={t('newNoteHere')} aria-label={t('newNoteHere')} onClick={() => void createNote()}><Icon name="plus" /></button>
+            )}
             {view.kind === 'trash' && notes.length > 0 && (
               <button
                 className="text-btn"
@@ -677,6 +776,23 @@ export function App() {
           <div className="phone-search">
             {searchField(phoneSearchInput, () => phoneSearchInput.current?.blur())}
             <button className="text-btn" onClick={() => { setQuery(''); setPhoneSearch(false); }}>{t('cancel')}</button>
+          </div>
+        )}
+        {view.kind !== 'tasks' && (
+          <div className="filters" role="group" aria-label={t('filters')}>
+            {([
+              ['todo:true', t('filterOpenTasks'), 'tasks'],
+              ['resource:*', t('filterFiles'), 'clip'],
+              ['reminderTime:*', t('filterReminder'), 'bell'],
+              ['updated:week', t('filterWeek'), 'calendar'],
+            ] as const).map(([op, label, icon]) => (
+              <button
+                key={op}
+                className={`filter ${filters.includes(op) ? 'on' : ''}`}
+                aria-pressed={filters.includes(op)}
+                onClick={() => setFilters((cur) => (cur.includes(op) ? cur.filter((x) => x !== op) : [...cur, op]))}
+              ><Icon name={icon} size={13} />{label}</button>
+            ))}
           </div>
         )}
         {view.kind === 'tasks' ? (
@@ -879,9 +995,9 @@ export function App() {
 
       {showSync && (
         <SyncPanel
-          onClose={() => setShowSync(false)}
+          onClose={() => { setShowSync(false); void refreshSync(); }}
           onSynced={(r, auto) => {
-            void Promise.all([refreshList(), refreshMeta()]);
+            void Promise.all([refreshList(), refreshMeta(), refreshSync()]);
             setToast(`${t('syncDone', { pushed: r.pushed, pulled: r.pulled })}${auto ? ` · ${t('autoSyncOn')}` : ''}`);
           }}
         />
@@ -1039,8 +1155,9 @@ function NoteTags({ note, onPatch, backlinks, onOpenNote }: {
 }
 
 /** An icon button that opens a small floating panel; closes on outside click, Escape and (unless keepOpen) on choosing an item. */
-function Popover({ icon, label, children, align = 'left', keepOpen = false, active = false }: {
+function Popover({ icon, label, children, align = 'left', keepOpen = false, active = false, className = '' }: {
   icon: IconName;
+  className?: string;
   label: string;
   children: ReactNode;
   align?: 'left' | 'right';
@@ -1067,7 +1184,7 @@ function Popover({ icon, label, children, align = 'left', keepOpen = false, acti
   return (
     <div className="popover" ref={box}>
       <button
-        className={`icon-btn ${active ? 'on' : ''}`}
+        className={`icon-btn ${className} ${active ? 'on' : ''}`}
         title={label}
         aria-label={label}
         aria-haspopup="true"
