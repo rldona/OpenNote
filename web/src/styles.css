@@ -1,4 +1,5 @@
 /* OpenNote design system: calm light surfaces, one accent colour, rounded cards. */
+@import './prosemirror.css';
 :root {
   --font: ui-sans-serif, system-ui, -apple-system, 'Segoe UI Variable', 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
   --accent-h: 150;
@@ -320,30 +321,6 @@ button.with-icon { display: inline-flex; align-items: center; justify-content: c
 .toolbar > button.active { background: var(--bg-card); border-color: var(--accent); color: var(--accent); }
 .toolbar .sep { width: 1px; height: 18px; background: var(--border); margin: 0 4px; }
 .editor-body { flex: 1 0 auto; padding: 14px var(--gutter) 80px; font-size: 15px; line-height: 1.65; }
-.ProseMirror { outline: none; min-height: 60vh; }
-.ProseMirror h1 { font-size: 1.7em; letter-spacing: -.02em; }
-.ProseMirror h2 { font-size: 1.35em; letter-spacing: -.01em; }
-.ProseMirror p { margin: .5em 0; }
-.ProseMirror p.is-editor-empty:first-child::before { content: attr(data-placeholder); color: var(--muted); float: left; height: 0; pointer-events: none; }
-.ProseMirror img { max-width: 100%; height: auto; border-radius: 8px; }
-.ProseMirror a { color: var(--accent); }
-.ProseMirror mark { background: var(--mark); color: inherit; border-radius: 3px; }
-.ProseMirror blockquote { border-left: 3px solid var(--accent); margin-left: 0; padding-left: 14px; color: var(--muted); }
-.ProseMirror pre { background: var(--bg-hover); padding: 12px 14px; border-radius: var(--radius); overflow-x: auto; }
-.ProseMirror code { background: var(--bg-hover); padding: 1px 5px; border-radius: 5px; }
-.ProseMirror pre code { background: none; padding: 0; }
-.ProseMirror table { border-collapse: separate; border-spacing: 0; width: 100%; margin: .8em 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
-.ProseMirror td, .ProseMirror th { border: 0; border-bottom: 1px solid var(--border); border-right: 1px solid var(--border); padding: 6px 10px; vertical-align: top; min-width: 60px; }
-.ProseMirror tr > :last-child { border-right: 0; }
-.ProseMirror tr:last-child > * { border-bottom: 0; }
-.ProseMirror th { background: var(--bg-hover); text-align: left; }
-.ProseMirror ul[data-type='taskList'] { list-style: none; padding-left: 4px; }
-.ProseMirror ul[data-type='taskList'] li { display: flex; gap: 8px; align-items: flex-start; }
-.ProseMirror ul[data-type='taskList'] li > label { margin-top: .4em; user-select: none; }
-.ProseMirror ul[data-type='taskList'] input { accent-color: var(--accent); width: 15px; height: 15px; }
-.ProseMirror ul[data-type='taskList'] li > div { flex: 1; }
-.ProseMirror ul[data-type='taskList'] li[data-checked='true'] > div { text-decoration: line-through; color: var(--muted); }
-.ProseMirror .selectedCell { background: var(--accent-soft); }
 
 /* overview pages: home and notebooks */
 .page, .home { padding: 32px var(--gutter) 40px; overflow-y: auto; flex: 1; }
@@ -527,10 +504,6 @@ button.with-icon { display: inline-flex; align-items: center; justify-content: c
 
 /* tasks */
 .due-picker { position: absolute; width: 0; height: 0; opacity: 0; pointer-events: none; }
-.ProseMirror ul[data-type='taskList'] li[data-due]::after {
-  content: '📅 ' attr(data-due); font-size: 12px; color: var(--muted); background: var(--bg-hover);
-  border-radius: 999px; padding: 0 8px; align-self: center; white-space: nowrap;
-}
 .tasks { overflow-y: auto; flex: 1; padding: 0 14px 14px; }
 .tasks .empty { color: var(--muted); text-align: center; padding: 32px 0; }
 .tasks h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 16px 0 4px; }
@@ -591,7 +564,6 @@ button.with-icon { display: inline-flex; align-items: center; justify-content: c
 .modal .row button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
 
 /* audio, sketch, attachments */
-.ProseMirror audio { display: block; width: min(420px, 100%); margin: .6em 0; }
 .toolbar > button[aria-pressed='true'] { background: var(--bg-active); border-color: var(--accent); }
 .modal.sketch { width: min(1000px, 96vw); max-height: 94vh; }
 .sketch-tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }

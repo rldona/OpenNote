@@ -7,11 +7,13 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
-    "build:standalone": "tsc --noEmit && vite build --mode standalone"
+    "build:standalone": "tsc --noEmit && vite build --mode standalone",
+    "build:embed": "tsc --noEmit && vite build --mode embed"
   },
   "dependencies": {
     "@noble/hashes": "^2.4.0",
     "@sqlite.org/sqlite-wasm": "3.53.4-build2",
+    "@tiptap/core": "^3.0.0",
     "@tiptap/extension-highlight": "^3.0.0",
     "@tiptap/extension-image": "^3.0.0",
     "@tiptap/extension-list": "^3.0.0",

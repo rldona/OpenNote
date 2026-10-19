@@ -1,34 +1,14 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { EditorContent, useEditor, type Editor } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
-import Image from '@tiptap/extension-image';
-import Placeholder from '@tiptap/extension-placeholder';
-import Highlight from '@tiptap/extension-highlight';
-import { TaskItem, TaskList } from '@tiptap/extension-list';
-import { Table, TableCell, TableHeader, TableRow } from '@tiptap/extension-table';
 import { Icon } from './Icon';
 import { askText } from './Prompt';
 import { api, type Note } from './api';
 import { lockNote, type NoteCipher } from './crypto';
 import { PassphraseDialog } from './Locked';
-import { Audio } from './AudioNode';
+import { noteExtensions } from './editorSchema';
 import { useRecorder } from './Recorder';
 import { Sketch } from './Sketch';
 import { t } from './i18n';
-
-/** Checklist item that can carry a due date, stored as data-due="YYYY-MM-DD". */
-const DueTaskItem = TaskItem.extend({
-  addAttributes() {
-    return {
-      ...this.parent?.(),
-      due: {
-        default: null,
-        parseHTML: (el: HTMLElement) => el.getAttribute('data-due'),
-        renderHTML: (attrs: Record<string, unknown>) => (attrs.due ? { 'data-due': attrs.due as string } : {}),
-      },
-    };
-  },
-});
 
 type Patch = { title?: string; content?: string };
 type Status = 'saved' | 'saving' | 'error';
@@ -134,20 +114,8 @@ export function NoteEditor({ note, onSaved, initialCipher = null, aside }: Props
   const editor = useEditor({
     editable: !readOnly,
     content: note.content,
-    extensions: [
-      // Links are handled below: internal note links navigate, external ones need Ctrl/Cmd+click.
-      StarterKit.configure({ link: { openOnClick: false } }),
-      Image,
-      Audio,
-      Highlight,
-      TaskList,
-      DueTaskItem.configure({ nested: true }),
-      Table.configure({ resizable: false }),
-      TableRow,
-      TableHeader,
-      TableCell,
-      Placeholder.configure({ placeholder: '…' }),
-    ],
+    // Links are handled below: internal note links navigate, external ones need Ctrl/Cmd+click.
+    extensions: noteExtensions(),
     onUpdate: ({ editor }) => schedule({ content: editor.getHTML() }),
     editorProps: {
       handleDOMEvents: {

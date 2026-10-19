@@ -1,0 +1,19 @@
+/* The page around the embedded editor: only the note body, on the app's background, with the web's theme tokens. */
+:root {
+  --accent-h: 150;
+  --bg: #ffffff; --fg: #1b211e; --muted: #667069; --border: #e4e7e2; --bg-hover: #eef0ed; --mark: #fff0a0; --radius: 10px;
+  --accent: oklch(0.58 0.16 var(--accent-h)); --accent-soft: color-mix(in oklab, var(--accent) 13%, var(--bg));
+  color-scheme: light;
+}
+:root[data-theme='dark'] {
+  --bg: #151918; --fg: #e6ebe8; --muted: #8f9b94; --border: #2a312e; --bg-hover: #252b29; --mark: #6b5d00;
+  --accent: oklch(0.75 0.15 var(--accent-h));
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--fg); -webkit-text-size-adjust: 100%; }
+body {
+  font: 16px/1.6 ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; -webkit-font-smoothing: antialiased;
+  padding: 4px max(16px, env(safe-area-inset-right)) 40vh max(16px, env(safe-area-inset-left));
+}
+#editor .ProseMirror { min-height: 50vh; }

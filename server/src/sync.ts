@@ -36,7 +36,7 @@ interface Stats {
 
 type VV = Record<string, number>;
 
-interface Record_ {
+export interface Record_ {
   v: number;
   id: string;
   deviceId: string;
@@ -108,7 +108,7 @@ const maxVV = (...all: VV[]): VV => {
 
 // ------------------------------------------------------------------- crypto
 
-class Codec {
+export class Codec {
   constructor(private readonly key: Buffer | null) {}
 
   get encrypted() {
@@ -143,7 +143,7 @@ class Codec {
 
 let lastKey: { id: string; key: Buffer } | null = null;
 /** scrypt is deliberately slow (a second or more in the browser), so the key of the last passphrase+salt is kept in memory. */
-function deriveKey(passphrase: string, salt: Buffer): Buffer {
+export function deriveKey(passphrase: string, salt: Buffer): Buffer {
   const id = `${salt.toString('base64')}:${passphrase}`;
   if (lastKey?.id === id) return lastKey.key;
   const key = scryptSync(passphrase, salt, 32, { N: 2 ** 15, r: 8, p: 1, maxmem: 128 * 1024 * 1024 });
@@ -166,13 +166,14 @@ export function noteHash(n: SyncNote): string {
   );
 }
 
-function checksum(r: Record_): string {
+/** sha256 of the record serialised without `chk` (docs/SYNC-FORMAT.md 3.4). */
+export function checksum(r: Record_): string {
   const { chk: _chk, ...rest } = r;
   return sha(JSON.stringify(rest));
 }
 
 /** A UUID derived from text, so two devices create the very same conflict copy. */
-function derivedId(text: string): string {
+export function derivedId(text: string): string {
   const h = sha(text);
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-a${h.slice(17, 20)}-${h.slice(20, 32)}`;
 }

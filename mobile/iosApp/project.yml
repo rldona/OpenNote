@@ -1,0 +1,47 @@
+# Xcode project for the iOS app, generated with XcodeGen (`xcodegen generate` in mobile/iosApp). The UI and logic are the
+# Kotlin framework built by Gradle (composeApp); this target only hosts it and bundles the web editor (web/dist-embed).
+name: OpenNote
+options:
+  bundleIdPrefix: app.opennote
+  deploymentTarget:
+    iOS: "16.0"
+settings:
+  base:
+    MARKETING_VERSION: "0.0.1"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  OpenNote:
+    type: application
+    platform: iOS
+    sources:
+      - path: iosApp
+    info:
+      path: iosApp/Info.plist
+      properties:
+        CFBundleDisplayName: OpenNote
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        CADisableMinimumFrameDurationOnPhone: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.opennote
+        FRAMEWORK_SEARCH_PATHS: "$(SRCROOT)/../composeApp/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)"
+        OTHER_LDFLAGS: "$(inherited) -framework ComposeApp"
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
+        CODE_SIGN_STYLE: Automatic
+    preBuildScripts:
+      - name: Build the Kotlin framework
+        script: |
+          cd "$SRCROOT/.."
+          export JAVA_HOME="${JAVA_HOME:-$(/usr/libexec/java_home -v 21 2>/dev/null || echo /opt/homebrew/opt/openjdk@21)}"
+          ./gradlew :composeApp:embedAndSignAppleFrameworkForXcode
+        basedOnDependencyAnalysis: false
+    postCompileScripts:
+      - name: Bundle the web editor
+        # web/dist-embed (npm run build:embed -w web) becomes editor/ in the app, as on Android.
+        script: |
+          dest="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/editor"
+          rm -rf "$dest" && mkdir -p "$dest"
+          cp "$SRCROOT/../../web/dist-embed/"* "$dest/"
+        basedOnDependencyAnalysis: false

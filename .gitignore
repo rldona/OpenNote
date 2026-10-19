@@ -9,3 +9,4 @@ desktop/dist
 desktop/release
 
 web/dist-standalone
+web/dist-embed
