@@ -6,6 +6,8 @@ when a `v*` tag is pushed; the section of the tag becomes the release notes.
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-10-19
+
 ### Added
 - **The sidebar hides by itself in a narrow window** (900 px or less) and comes back when the window is wide again. In a narrow
   window the sidebar button still opens it by hand, and choosing a section closes it again. Your own show/hide choice for wide
@@ -177,7 +179,8 @@ First public build.
 - Local-only by design: the server listens on loopback only, with Host/Origin checks, a strict Content-Security-Policy and
   sanitized HTML.
 
-[Unreleased]: https://github.com/rldona/OpenNote/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/rldona/OpenNote/compare/v0.4.3...HEAD
+[0.4.3]: https://github.com/rldona/OpenNote/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/rldona/OpenNote/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/rldona/OpenNote/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/rldona/OpenNote/compare/v0.3.1...v0.4.0
