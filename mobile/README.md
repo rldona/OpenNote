@@ -41,5 +41,5 @@ The shared tests read the contract fixtures in `server/test/fixtures/sync-v1` an
 ## Status
 
 Phases 1 (core), 2 (interface) and 3 (Keychain/Keystore, Google sign-in, notifications, background sync, Share on Android)
-done; next are the OAuth clients and a real sync between devices, then the iOS Share extension and the camera. Details and open points: [docs/MOBILE-SPIKE.md](../docs/MOBILE-SPIKE.md).
+done, with sign-in and sync checked on an iPad; next are Android on a device, the iOS Share extension and the camera. Details and open points: [docs/MOBILE-SPIKE.md](../docs/MOBILE-SPIKE.md).
 CI: `.github/workflows/mobile.yml`.

@@ -35,8 +35,10 @@ has no Keychain, error -34018, so local simulator builds are now signed ad hoc),
 notification arriving and opening its note, the Settings section, and the system sign-in sheet opening for
 accounts.google.com and cancelling cleanly. Android builds.
 
-Not checked yet: a full sign-in and sync against a real Google account (needs the iOS and Android OAuth clients), the
-background refresh (iOS does not run it in the simulator), and anything on Android beyond the build.
+On a real iPad Pro 11" (2018) with the iOS OAuth client: sign-in with a Google account, the passphrase of the other
+devices, and a sync that brought the notes written on the web and desktop apps.
+
+Not checked yet: the background refresh (iOS does not run it in the simulator), and anything on Android beyond the build.
 
 Left for later: a Share extension on iOS (it needs an App Group shared with the app), camera and document scanner.
 
@@ -125,7 +127,6 @@ state drives the native formatting bar, and one WebView is reused between notes.
 
 ## Next
 
-- **Google OAuth clients** for iOS and Android ([GOOGLE-DRIVE-SETUP.md](GOOGLE-DRIVE-SETUP.md)), then a full sign-in and
-  sync between a phone and the desktop.
+- **Android on a device:** sign-in with the Android OAuth client, Share, reminders after a restart, background sync.
 - **Phase 4:** iOS Share extension, camera and document scanner, then store builds (signing in CI).
 - Real devices for the open points above.
