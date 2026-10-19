@@ -6,6 +6,8 @@ when a `v*` tag is pushed; the section of the tag becomes the release notes.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-19
+
 ### Added
 - **Desktop app: sync with Google Drive.** In the sync panel choose **Google Drive** next to the folder option, connect in your
   browser, set the passphrase and sync. It keeps working without asking again every hour. Needs the one-time Google Cloud
@@ -137,7 +139,8 @@ First public build.
 - Local-only by design: the server listens on loopback only, with Host/Origin checks, a strict Content-Security-Policy and
   sanitized HTML.
 
-[Unreleased]: https://github.com/rldona/OpenNote/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/rldona/OpenNote/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/rldona/OpenNote/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/rldona/OpenNote/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/rldona/OpenNote/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/rldona/OpenNote/compare/v0.1.2...v0.2.0
