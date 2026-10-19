@@ -12,6 +12,11 @@ when a `v*` tag is pushed; the section of the tag becomes the release notes.
   setup in `docs/GOOGLE-DRIVE-SETUP.md` (a second, "Desktop app" client); until then the panel says it is not set up.
 
 ### Fixed
+- **macOS desktop app: a crash when closing or quitting** ("A JavaScript error occurred in the main process: Object has been
+  destroyed"). The code that adapts the page to the unified title bar touched a window that had already been closed, and the error
+  left the app half quit (window still open, notes server already stopped, "OpenNote is not running" banner). Every window access now
+  checks that the window is still alive, uncaught errors are logged instead of interrupting the app, and the smoke test closes
+  windows at several moments of their load.
 - Web sync panel: the **Sync automatically** checkbox could not be changed (it saved the value it already had); it now works.
 - Web sync panel: it closes by itself, with a confirmation message, when **Sync now** finishes well; if the sync fails it stays open
   showing the problem.

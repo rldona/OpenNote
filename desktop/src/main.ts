@@ -62,6 +62,13 @@ const tr = (key: keyof typeof es, vars: Record<string, string | number> = {}) =>
 
 // ------------------------------------------------------------------ state
 
+/** Uncaught exceptions are logged instead of opening Electron's crash dialog, and the smoke test fails when there is one. */
+const uncaught: string[] = [];
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught exception in the main process:', err);
+  uncaught.push(String(err));
+});
+
 let settings: Settings;
 let server: RunningServer;
 let mainWindow: BrowserWindow | null = null;
@@ -102,7 +109,9 @@ function lockNavigation(win: BrowserWindow, allowed: (url: string) => boolean): 
   });
 }
 
-const runInMain = (js: string) => mainWindow?.webContents.executeJavaScript(js).catch(() => undefined);
+/** The main window, only while it can still be used. */
+const liveMain = () => (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed() ? mainWindow : null);
+const runInMain = (js: string) => liveMain()?.webContents.executeJavaScript(js).catch(() => undefined);
 const refreshMain = () => runInMain("window.dispatchEvent(new Event('focus'))");
 
 // ---------------------------------------------------------------- windows
@@ -124,11 +133,17 @@ function createMainWindow(): BrowserWindow {
   });
   if (isMac) {
     // The page adapts its top spacing and drag areas to this class (see "desktop-mac" in web/src/styles.css).
-    const mark = (fullscreen: boolean) =>
+    // A window can be closed while its page is loading: check it is still alive before touching it.
+    const alive = () => !win.isDestroyed() && !win.webContents.isDestroyed();
+    const mark = (fullscreen: boolean) => {
+      if (!alive()) return;
       void win.webContents
         .executeJavaScript(`document.documentElement.classList.add('desktop-mac');document.documentElement.classList.toggle('desktop-fs',${fullscreen})`)
         .catch(() => undefined);
-    win.webContents.on('did-finish-load', () => mark(win.isFullScreen()));
+    };
+    win.webContents.on('did-finish-load', () => {
+      if (alive()) mark(win.isFullScreen());
+    });
     win.on('enter-full-screen', () => mark(true));
     win.on('leave-full-screen', () => mark(false));
   }
@@ -158,7 +173,7 @@ function createMainWindow(): BrowserWindow {
 }
 
 function showMainWindow(): void {
-  if (!mainWindow) mainWindow = createMainWindow();
+  if (!mainWindow || mainWindow.isDestroyed()) mainWindow = createMainWindow();
   if (mainWindow.isMinimized()) mainWindow.restore();
   mainWindow.show();
   mainWindow.focus();
@@ -340,17 +355,18 @@ async function installUpdate(release: Release): Promise<void> {
   if (!asset || !app.isPackaged) return openExternal(release.pageUrl);
   if (updating) return;
   updating = true;
-  const win = mainWindow;
+  const win = liveMain();
+  const live = () => (win && !win.isDestroyed() ? win : null);
   const title = win?.getTitle() ?? 'OpenNote';
   try {
     const dir = join(app.getPath('temp'), 'opennote-update');
     rmSync(dir, { recursive: true, force: true });
     const file = await downloadAsset(asset, dir, (f) => {
-      win?.setProgressBar(f);
-      win?.setTitle(`OpenNote — ${tr('downloading', { n: Math.round(f * 100) })}`);
+      live()?.setProgressBar(f);
+      live()?.setTitle(`OpenNote — ${tr('downloading', { n: Math.round(f * 100) })}`);
     });
-    win?.setProgressBar(-1);
-    win?.setTitle(title);
+    live()?.setProgressBar(-1);
+    live()?.setTitle(title);
 
     if (process.platform === 'darwin') {
       const bundle = bundlePath(app.getPath('exe'));
@@ -384,8 +400,8 @@ async function installUpdate(release: Release): Promise<void> {
       await showBox({ type: 'info', title: 'OpenNote', message: tr('debOpened'), buttons: [tr('close')] });
     }
   } catch (err) {
-    win?.setProgressBar(-1);
-    win?.setTitle(title);
+    live()?.setProgressBar(-1);
+    live()?.setTitle(title);
     pendingInstall = null;
     await updateFailed(release, err);
   } finally {
@@ -520,7 +536,11 @@ function buildTray(): void {
       { label: tr('quit'), click: () => app.quit() },
     ]),
   );
-  tray.on('click', () => (mainWindow?.isVisible() && mainWindow.isFocused() ? mainWindow.hide() : showMainWindow()));
+  tray.on('click', () => {
+    const w = liveMain();
+    if (w?.isVisible() && w.isFocused()) w.hide();
+    else showMainWindow();
+  });
 }
 
 // ---------------------------------------------------------------- security
@@ -553,6 +573,15 @@ async function smokeTest(): Promise<void> {
     if (!html.includes('id="root"')) throw new Error('web UI is not served');
     const note = server.store.createNote({ title: 'smoke', content: '<p>fts check</p>' });
     if (server.store.listNotes({ q: 'fts' })[0]?.id !== note.id) throw new Error('full-text search failed');
+    // Closing a window while its page is still loading must not throw (it once did, and left the app half quit).
+    for (const [delay, how] of [[0, 'destroy'], [40, 'close'], [150, 'close'], [400, 'close'], [900, 'close'], [1500, 'close']] as const) {
+      const w = createMainWindow();
+      await new Promise((r) => setTimeout(r, delay));
+      if (how === 'close') w.close();
+      else w.destroy();
+      await new Promise((r) => setTimeout(r, 500));
+    }
+    if (uncaught.length) throw new Error(`uncaught exception: ${uncaught[0]}`);
     console.log(`SMOKE OK ${process.platform}/${process.arch} electron ${process.versions.electron} node ${process.versions.node}`);
     quitting = true;
     await server.close();
