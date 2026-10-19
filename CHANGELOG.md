@@ -6,6 +6,8 @@ when a `v*` tag is pushed; the section of the tag becomes the release notes.
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-10-19
+
 ### Fixed
 - **Desktop app: "No se pudo buscar actualizaciones: GitHub answered 403".** The update check used GitHub's public API, which allows
   only 60 requests an hour per internet address (shared by everyone behind the same router), so it could fail for no reason of its
@@ -151,7 +153,8 @@ First public build.
 - Local-only by design: the server listens on loopback only, with Host/Origin checks, a strict Content-Security-Policy and
   sanitized HTML.
 
-[Unreleased]: https://github.com/rldona/OpenNote/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/rldona/OpenNote/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/rldona/OpenNote/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/rldona/OpenNote/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/rldona/OpenNote/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/rldona/OpenNote/compare/v0.3.0...v0.3.1
