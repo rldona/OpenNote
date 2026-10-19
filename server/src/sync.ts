@@ -1,6 +1,6 @@
 /**
- * Serverless sync through a shared folder (Syncthing, iCloud Drive, Dropbox, USB, NAS…).
- * See docs/SYNC.md for the format and the merge rules.
+ * Serverless sync. The merge logic below works over any `SyncTransport` (sync-transport.ts): a shared folder (Syncthing,
+ * iCloud Drive, Dropbox, USB, NAS…) today, other storage backends later. See docs/SYNC.md for the format and merge rules.
  *
  * Every device only ever writes its own files, so a file-sync tool never has to merge anything:
  *   <folder>/opennote-sync/format.json
@@ -13,9 +13,9 @@ import {
   createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, randomUUID, scryptSync, timingSafeEqual,
 } from 'node:crypto';
 import { existsSync, statSync } from 'node:fs';
-import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { hostname } from 'node:os';
-import { dirname, join, resolve, sep } from 'node:path';
+import { join, resolve, sep } from 'node:path';
+import { FolderTransport, type SyncTransport } from './sync-transport.js';
 import type { NoteStore, SyncNote } from './store.js';
 
 export const SYNC_FORMAT_VERSION = 1;
@@ -155,15 +155,6 @@ function checksum(r: Record_): string {
   return sha(JSON.stringify(rest));
 }
 
-async function writeAtomic(path: string, data: Buffer): Promise<void> {
-  await mkdir(dirname(path), { recursive: true });
-  const tmp = `${path}.tmp-${randomBytes(4).toString('hex')}`;
-  await writeFile(tmp, data);
-  await rename(tmp, path);
-}
-
-const exists = async (p: string) => stat(p).then(() => true, () => false);
-
 /** A UUID derived from text, so two devices create the very same conflict copy. */
 function derivedId(text: string): string {
   const h = sha(text);
@@ -177,11 +168,11 @@ const day = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 export class SyncEngine {
   private running = false;
   private status: SyncStatus = { running: false, lastRunAt: null, ok: true, pushed: 0, pulled: 0, deleted: 0, conflicts: [], errors: [] };
-  private cache = new Map<string, { mtime: number; size: number; rec: Record_ | null }>();
+  private cache = new Map<string, { version: string; rec: Record_ | null }>();
 
   constructor(
     private readonly store: NoteStore,
-    private readonly opts: { dataDir: string; deviceName?: string },
+    private readonly opts: { dataDir: string; deviceName?: string; /** Replaces the configured folder (tests, other backends). */ transport?: () => SyncTransport },
   ) {
     const saved = store.getMeta('sync.status');
     if (saved) this.status = { ...this.status, ...JSON.parse(saved), running: false };
@@ -250,13 +241,14 @@ export class SyncEngine {
   async run(): Promise<SyncStatus> {
     if (this.running) return this.getStatus();
     const folder = this.store.getMeta('sync.folder');
-    if (!folder) throw new SyncError('no sync folder configured');
+    if (!folder && !this.opts.transport) throw new SyncError('no sync folder configured');
     this.running = true;
     const stats = { pushed: 0, pulled: 0, deleted: 0, conflicts: [] as SyncConflict[], errors: [] as string[] };
     let fatal: string | null = null;
     try {
-      const codec = await this.openFolder(this.validateFolder(folder));
-      await this.syncAll(join(resolve(folder), 'opennote-sync'), codec, stats);
+      const transport = this.opts.transport ? this.opts.transport() : new FolderTransport(join(this.validateFolder(folder!), 'opennote-sync'));
+      const codec = await this.openRemote(transport);
+      await this.syncAll(transport, codec, stats);
     } catch (err) {
       fatal = err instanceof Error ? err.message : String(err);
     } finally {
@@ -276,16 +268,11 @@ export class SyncEngine {
     return this.getStatus();
   }
 
-  /** Creates the folder structure on first use and returns the codec matching it. */
-  private async openFolder(folder: string): Promise<Codec> {
-    const root = join(folder, 'opennote-sync');
-    const formatPath = join(root, 'format.json');
+  /** Creates the remote structure on first use and returns the codec matching it. */
+  private async openRemote(t: SyncTransport): Promise<Codec> {
     const passphrase = this.store.getMeta('sync.passphrase');
-    await mkdir(join(root, 'notes'), { recursive: true });
-    await mkdir(join(root, 'attachments'), { recursive: true });
-    await mkdir(join(root, 'devices'), { recursive: true });
 
-    if (!(await exists(formatPath))) {
+    if (!(await t.exists('format.json'))) {
       const salt = randomBytes(16);
       const key = passphrase ? deriveKey(passphrase, salt) : null;
       const codec = new Codec(key);
@@ -296,15 +283,14 @@ export class SyncEngine {
         salt: passphrase ? salt.toString('base64') : undefined,
         verifier: passphrase ? codec.encode(Buffer.from('opennote')).toString('base64') : undefined,
       };
-      // "wx": if another device initialised the folder first, theirs wins and we read it below.
-      await writeFile(formatPath, JSON.stringify(format, null, 2), { flag: 'wx' }).catch((e: NodeJS.ErrnoException) => {
-        if (e.code !== 'EEXIST') throw e;
-      });
+      // If another device initialised the remote first, theirs wins and we read it below.
+      await t.writeIfAbsent('format.json', Buffer.from(JSON.stringify(format, null, 2)));
     }
 
-    const format = JSON.parse(await readFile(formatPath, 'utf8')) as {
+    const format = JSON.parse((await t.read('format.json'))?.toString('utf8') ?? '{}') as {
       version: number; encrypted: boolean; salt?: string; verifier?: string;
     };
+    if (!format.version) throw new SyncError('the sync location has no readable format file yet; try again in a moment');
     if (format.version > SYNC_FORMAT_VERSION) throw new SyncError('the sync folder was written by a newer OpenNote version');
     if (!format.encrypted) {
       if (passphrase) throw new SyncError('this sync folder is not encrypted; remove the passphrase or use a new folder');
@@ -319,18 +305,19 @@ export class SyncEngine {
 
   // -------------------------------------------------------- read & write files
 
-  private async readRecord(path: string, codec: Codec): Promise<Record_ | null> {
+  private async readRecord(t: SyncTransport, path: string, version: string, codec: Codec): Promise<Record_ | null> {
     try {
-      const st = await stat(path);
       const hit = this.cache.get(path);
-      if (hit && hit.mtime === st.mtimeMs && hit.size === st.size) return hit.rec;
-      const rec = JSON.parse(codec.decode(await readFile(path)).toString('utf8')) as Record_;
+      if (hit && hit.version === version) return hit.rec;
+      const raw = await t.read(path);
+      if (!raw) return null;
+      const rec = JSON.parse(codec.decode(raw).toString('utf8')) as Record_;
       const ok =
         rec && rec.v === SYNC_FORMAT_VERSION && ID.test(rec.id) && DEVICE_ID.test(rec.deviceId) &&
         typeof rec.vv === 'object' && rec.vv !== null && rec.chk === checksum(rec) &&
         (rec.deleted === true || (rec.note && rec.note.id === rec.id && typeof rec.note.content === 'string'));
       const result = ok ? rec : null;
-      this.cache.set(path, { mtime: st.mtimeMs, size: st.size, rec: result });
+      this.cache.set(path, { version, rec: result });
       return result;
     } catch (err) {
       // Half-synced or damaged file: ignore it now, it is read again on the next run.
@@ -339,37 +326,38 @@ export class SyncEngine {
     }
   }
 
-  private async writeRecord(root: string, codec: Codec, rec: Record_): Promise<void> {
+  private async writeRecord(t: SyncTransport, codec: Codec, rec: Record_): Promise<void> {
     rec.chk = checksum(rec);
-    await writeAtomic(join(root, 'notes', rec.id, `${rec.deviceId}.json`), codec.encode(Buffer.from(JSON.stringify(rec))));
+    await t.write(`notes/${rec.id}/${rec.deviceId}.json`, codec.encode(Buffer.from(JSON.stringify(rec))));
   }
 
   /** Reads every device's file of one note. */
-  private async readNote(root: string, id: string, codec: Codec): Promise<Record_[]> {
-    const dir = join(root, 'notes', id);
-    const files = await readdir(dir).catch(() => [] as string[]);
+  private async readNote(t: SyncTransport, id: string, codec: Codec): Promise<Record_[]> {
+    const files = await t.list(`notes/${id}`);
     const out: Record_[] = [];
-    for (const f of files) {
+    for (const { name: f, version } of files) {
       if (!f.endsWith('.json') || !DEVICE_ID.test(f.slice(0, -5))) continue;
-      const rec = await this.readRecord(join(dir, f), codec);
+      const rec = await this.readRecord(t, `notes/${id}/${f}`, version, codec);
       if (rec && rec.id === id && `${rec.deviceId}.json` === f) out.push(rec);
     }
     return out;
   }
 
-  private async ensureBlob(root: string, codec: Codec, sha256: string, attachmentId: string): Promise<void> {
-    const path = join(root, 'attachments', codec.blobName(sha256));
-    if (await exists(path)) return;
-    await writeAtomic(path, codec.encode(this.store.attachmentData(attachmentId)));
+  private async ensureBlob(t: SyncTransport, codec: Codec, sha256: string, attachmentId: string): Promise<void> {
+    const path = `attachments/${codec.blobName(sha256)}`;
+    if (await t.exists(path)) return;
+    await t.write(path, codec.encode(this.store.attachmentData(attachmentId)));
   }
 
-  private async readBlobs(root: string, codec: Codec, rec: SyncNote): Promise<Map<string, Buffer> | null> {
+  private async readBlobs(t: SyncTransport, codec: Codec, rec: SyncNote): Promise<Map<string, Buffer> | null> {
     const blobs = new Map<string, Buffer>();
     for (const a of rec.attachments) {
       if (this.store.hasAttachment(a.id)) continue;
       if (!BLOB_NAME.test(a.sha256)) return null;
       try {
-        const data = codec.decode(await readFile(join(root, 'attachments', codec.blobName(a.sha256))));
+        const raw = await t.read(`attachments/${codec.blobName(a.sha256)}`);
+        if (!raw) return null;
+        const data = codec.decode(raw);
         if (sha(data) !== a.sha256) return null;
         blobs.set(a.id, data);
       } catch {
@@ -381,14 +369,11 @@ export class SyncEngine {
 
   // ------------------------------------------------------------------- merge
 
-  private async syncAll(root: string, codec: Codec, stats: Stats & { errors: string[] }): Promise<void> {
+  private async syncAll(t: SyncTransport, codec: Codec, stats: Stats & { errors: string[] }): Promise<void> {
     const me = this.deviceId;
-    await writeAtomic(
-      join(root, 'devices', `${me}.json`),
-      codec.encode(Buffer.from(JSON.stringify({ id: me, name: this.deviceName, lastSeenAt: Date.now() }))),
-    );
+    await t.write(`devices/${me}.json`, codec.encode(Buffer.from(JSON.stringify({ id: me, name: this.deviceName, lastSeenAt: Date.now() }))));
 
-    const remoteIds = (await readdir(join(root, 'notes')).catch(() => [] as string[])).filter((n) => ID.test(n));
+    const remoteIds = (await t.list('notes')).map((e) => e.name).filter((n) => ID.test(n));
     const done = new Set<string>();
     // A second pass picks up notes created during the first one (conflict copies).
     for (let pass = 0; pass < 3; pass++) {
@@ -398,19 +383,19 @@ export class SyncEngine {
       for (const id of todo) {
         done.add(id);
         try {
-          await this.syncNote(root, codec, id, stats);
+          await this.syncNote(t, codec, id, stats);
         } catch (err) {
           if (err instanceof SyncError) throw err;
           stats.errors.push(`${id}: ${err instanceof Error ? err.message : String(err)}`);
         }
       }
     }
-    await this.collectGarbage(root);
+    await this.collectGarbage(t);
   }
 
-  private async syncNote(root: string, codec: Codec, id: string, stats: Stats): Promise<void> {
+  private async syncNote(t: SyncTransport, codec: Codec, id: string, stats: Stats): Promise<void> {
     const me = this.deviceId;
-    const all = await this.readNote(root, id, codec);
+    const all = await this.readNote(t, id, codec);
     const own = all.find((r) => r.deviceId === me);
     // Records no other record supersedes. Ours is handled separately.
     const frontier = all.filter((r) => r.deviceId !== me && !all.some((o) => o !== r && compareVV(o.vv, r.vv) === 'after'));
@@ -436,7 +421,7 @@ export class SyncEngine {
 
       // Several devices edited concurrently: the losers are kept as conflict copies.
       for (const loser of live) {
-        if (winner && loser !== winner && noteHash(loser.note!) !== noteHash(winner.note!)) await this.keepConflictCopy(loser, stats, root, codec);
+        if (winner && loser !== winner && noteHash(loser.note!) !== noteHash(winner.note!)) await this.keepConflictCopy(loser, stats, t, codec);
       }
 
       if (!winner) {
@@ -444,7 +429,7 @@ export class SyncEngine {
         if (local && !localChanged) {
           this.store.deleteForSync(id);
           this.store.deleteSyncState(id);
-          if (own) await rm(join(root, 'notes', id, `${me}.json`), { force: true });
+          if (own) await t.remove(`notes/${id}/${me}.json`);
           stats.deleted++;
           return;
         }
@@ -456,7 +441,7 @@ export class SyncEngine {
         base = maxVV(base, remoteVV);
         needPush = true;
       } else {
-        const blobs = await this.readBlobs(root, codec, winner.note!);
+        const blobs = await this.readBlobs(t, codec, winner.note!);
         if (blobs === null) return; // attachments still syncing: try again next run
         base = maxVV(base, remoteVV);
         if (!local) {
@@ -475,10 +460,10 @@ export class SyncEngine {
           // Both sides edited. The newest wins and the other version survives as a conflict copy.
           const localWins = local.updatedAt > winner.note!.updatedAt || (local.updatedAt === winner.note!.updatedAt && me > winner.deviceId);
           if (localWins) {
-            await this.keepConflictCopy(winner, stats, root, codec);
+            await this.keepConflictCopy(winner, stats, t, codec);
             needPush = true;
           } else {
-            await this.keepConflictCopy({ ...winner, note: local, deviceId: me, deviceName: this.deviceName }, stats, root, codec);
+            await this.keepConflictCopy({ ...winner, note: local, deviceId: me, deviceName: this.deviceName }, stats, t, codec);
             this.store.applyFromSync(winner.note!, blobs);
             stats.pulled++;
             needPush = false;
@@ -498,7 +483,7 @@ export class SyncEngine {
       }
       if (!tomb.pushed || needPush || (own && !own.deleted)) {
         const vv = { ...base, [me]: Math.max(base[me] ?? 0, own?.vv[me] ?? 0) + 1 };
-        await this.writeRecord(root, codec, { v: SYNC_FORMAT_VERSION, id, deviceId: me, deviceName: this.deviceName, vv, writtenAt: Date.now(), deleted: true });
+        await this.writeRecord(t, codec, { v: SYNC_FORMAT_VERSION, id, deviceId: me, deviceName: this.deviceName, vv, writtenAt: Date.now(), deleted: true });
         this.store.setSyncState(id, vv, 'deleted');
         this.store.markTombstonePushed(id);
         stats.pushed++;
@@ -507,18 +492,20 @@ export class SyncEngine {
     }
 
     if (!needPush || !local) return;
-    for (const a of local.attachments) await this.ensureBlob(root, codec, a.sha256, a.id);
+    for (const a of local.attachments) await this.ensureBlob(t, codec, a.sha256, a.id);
     const vv = { ...base, [me]: Math.max(base[me] ?? 0, own?.vv[me] ?? 0) + 1 };
-    await this.writeRecord(root, codec, { v: SYNC_FORMAT_VERSION, id, deviceId: me, deviceName: this.deviceName, vv, writtenAt: Date.now(), note: local });
+    await this.writeRecord(t, codec, { v: SYNC_FORMAT_VERSION, id, deviceId: me, deviceName: this.deviceName, vv, writtenAt: Date.now(), note: local });
     this.store.setSyncState(id, vv, noteHash(local));
     stats.pushed++;
   }
 
   /** Bytes of an attachment: from this device if present, otherwise from the sync folder. */
-  private async blobFor(root: string, codec: Codec, a: SyncNote['attachments'][number]): Promise<Buffer | null> {
+  private async blobFor(t: SyncTransport, codec: Codec, a: SyncNote['attachments'][number]): Promise<Buffer | null> {
     if (this.store.hasAttachment(a.id)) return this.store.attachmentData(a.id);
     try {
-      const data = codec.decode(await readFile(join(root, 'attachments', codec.blobName(a.sha256))));
+      const raw = await t.read(`attachments/${codec.blobName(a.sha256)}`);
+      if (!raw) return null;
+      const data = codec.decode(raw);
       return sha(data) === a.sha256 ? data : null;
     } catch {
       return null;
@@ -529,7 +516,7 @@ export class SyncEngine {
    * Saves a losing version as a new note. Its id, title and attachment ids come from the loser only,
    * so every device builds exactly the same copy and the copies do not conflict with each other.
    */
-  private async keepConflictCopy(loser: Record_, stats: Stats, root: string, codec: Codec): Promise<void> {
+  private async keepConflictCopy(loser: Record_, stats: Stats, t: SyncTransport, codec: Codec): Promise<void> {
     const n = loser.note!;
     const copyId = derivedId(`conflict:${loser.id}:${loser.deviceId}:${noteHash(n)}`);
     if (this.store.hasNote(copyId)) return;
@@ -538,7 +525,7 @@ export class SyncEngine {
     const attachments: SyncNote['attachments'] = [];
     const blobs = new Map<string, Buffer>();
     for (const a of n.attachments) {
-      const data = await this.blobFor(root, codec, a);
+      const data = await this.blobFor(t, codec, a);
       if (!data) continue;
       const newId = derivedId(`${copyId}:${a.id}`);
       content = content.split(`/api/attachments/${a.id}`).join(`/api/attachments/${newId}`);
@@ -550,14 +537,14 @@ export class SyncEngine {
   }
 
   /** Our own tombstone files older than the TTL are removed; every device has had ample time to see them. */
-  private async collectGarbage(root: string): Promise<void> {
+  private async collectGarbage(tr: SyncTransport): Promise<void> {
     const me = this.deviceId;
     const now = Date.now();
-    for (const t of this.store.listTombstones()) {
-      if (!t.pushed || now - t.deletedAt < TOMBSTONE_TTL_MS) continue;
-      await rm(join(root, 'notes', t.noteId, `${me}.json`), { force: true });
-      this.store.removeTombstone(t.noteId);
-      this.store.deleteSyncState(t.noteId);
+    for (const tomb of this.store.listTombstones()) {
+      if (!tomb.pushed || now - tomb.deletedAt < TOMBSTONE_TTL_MS) continue;
+      await tr.remove(`notes/${tomb.noteId}/${me}.json`);
+      this.store.removeTombstone(tomb.noteId);
+      this.store.deleteSyncState(tomb.noteId);
     }
   }
 }

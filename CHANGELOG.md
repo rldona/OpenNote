@@ -6,6 +6,11 @@ when a `v*` tag is pushed; the section of the tag becomes the release notes.
 
 ## [Unreleased]
 
+### Changed
+- Sync internals: the merge engine now talks to a storage **transport** instead of the file system, so more destinations
+  (Google Drive, WebDAV…) can be added without touching the merge rules. Folder sync behaves exactly as before.
+  See `docs/SYNC-BACKENDS.md` for the plan.
+
 ## [0.3.1] - 2026-10-19
 
 ### Fixed

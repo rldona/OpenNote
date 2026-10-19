@@ -1,5 +1,7 @@
 # Sync without a cloud
 
+> Roadmap for more destinations (Google Drive, other devices): [SYNC-BACKENDS.md](SYNC-BACKENDS.md).
+
 OpenNote syncs between your devices through **a folder you choose**. Point every device at a folder that
 Syncthing, iCloud Drive, Dropbox, OneDrive, a NAS mount or a USB drive keeps in sync. OpenNote never
 contacts any server and there is nothing for us to host.
