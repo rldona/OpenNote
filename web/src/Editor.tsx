@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { EditorContent, useEditor, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
@@ -38,10 +38,12 @@ interface Props {
   onSaved: (note: Note) => void;
   /** Set when the note was just unlocked: edits are re-encrypted with this key before saving. */
   initialCipher?: NoteCipher | null;
+  /** Shown under the title, scrolling with the note (tags, backlinks). */
+  aside?: ReactNode;
 }
 
 /** Rich text editor with debounced autosave. Remounted per note via `key`. */
-export function NoteEditor({ note, onSaved, initialCipher = null }: Props) {
+export function NoteEditor({ note, onSaved, initialCipher = null, aside }: Props) {
   const [title, setTitle] = useState(note.title);
   const [status, setStatus] = useState<Status>('saved');
   const [picking, setPicking] = useState(false);
@@ -184,6 +186,9 @@ export function NoteEditor({ note, onSaved, initialCipher = null }: Props) {
 
   return (
     <div className="editor">
+      {!readOnly && editor && <Toolbar editor={editor} onFile={(f) => void insertUpload(f)} onLinkNote={() => setPicking(true)} recorder={recorder} onSketch={() => setSketching(true)} locked={!!cipher} onToggleLock={() => (cipher ? void removeLock() : setAskPass(true))} />}
+      {/* The title scrolls with the text; only the toolbar stays put (above the note, or above the keyboard on phones). */}
+      <div className="editor-scroll">
       <div className="editor-head">
         <input
           className="title-input"
@@ -199,9 +204,11 @@ export function NoteEditor({ note, onSaved, initialCipher = null }: Props) {
           {status === 'saving' ? t('saving') : status === 'error' ? '⚠' : t('saved')}
         </span>
       </div>
-      {!readOnly && editor && <Toolbar editor={editor} onFile={(f) => void insertUpload(f)} onLinkNote={() => setPicking(true)} recorder={recorder} onSketch={() => setSketching(true)} locked={!!cipher} onToggleLock={() => (cipher ? void removeLock() : setAskPass(true))} />}
+      {aside}
       {cipher && <div className="lock-banner" role="status">🔒 {t('lockedBanner')}</div>}
       {recorder.error && <div className="lock-banner error" role="alert">🎙 {recorder.error}</div>}
+      <EditorContent editor={editor} className="editor-body" />
+      </div>
       {sketching && (
         <Sketch
           onClose={() => setSketching(false)}
@@ -227,7 +234,6 @@ export function NoteEditor({ note, onSaved, initialCipher = null }: Props) {
           }}
         />
       )}
-      <EditorContent editor={editor} className="editor-body" />
     </div>
   );
 }
@@ -258,16 +264,30 @@ function Toolbar({ editor, onFile, onLinkNote, locked, onToggleLock, recorder, o
       {text}
     </button>
   );
+  const item = (label: string, icon: ReactNode, run: () => void, close: () => void, active = false) => (
+    <button key={label} type="button" role="menuitem" className={active ? 'selected' : ''} onClick={() => { run(); close(); }}>
+      <span className="check">{icon}</span>{label}
+    </button>
+  );
+  const heading = editor.isActive('heading') || editor.isActive('blockquote') || editor.isActive('codeBlock');
+  // Grouped like the menus of most note apps: text style, inline marks, lists, then what can be inserted.
   return (
     <div className="toolbar" role="toolbar">
-      {btn(t('bold'), 'B', () => chain().toggleBold().run(), editor.isActive('bold'))}
-      {btn(t('italic'), 'I', () => chain().toggleItalic().run(), editor.isActive('italic'))}
-      {btn(t('underline'), 'U', () => chain().toggleUnderline().run(), editor.isActive('underline'))}
-      {btn(t('strike'), 'S', () => chain().toggleStrike().run(), editor.isActive('strike'))}
-      {btn(t('highlight'), '▮', () => chain().toggleHighlight().run(), editor.isActive('highlight'))}
-      <span className="sep" />
-      {btn('H1', 'H1', () => chain().toggleHeading({ level: 1 }).run(), editor.isActive('heading', { level: 1 }))}
-      {btn('H2', 'H2', () => chain().toggleHeading({ level: 2 }).run(), editor.isActive('heading', { level: 2 }))}
+      <ToolMenu label={t('textStyle')} icon={<span className="aa">Aa</span>} active={heading || editor.isActive('strike') || editor.isActive('highlight')}>
+        {(close) => [
+          item(t('paragraph'), '¶', () => chain().setParagraph().run(), close, editor.isActive('paragraph') && !heading),
+          item(t('heading1'), 'H1', () => chain().toggleHeading({ level: 1 }).run(), close, editor.isActive('heading', { level: 1 })),
+          item(t('heading2'), 'H2', () => chain().toggleHeading({ level: 2 }).run(), close, editor.isActive('heading', { level: 2 })),
+          item(t('quote'), '❝', () => chain().toggleBlockquote().run(), close, editor.isActive('blockquote')),
+          item(t('code'), '</>', () => chain().toggleCodeBlock().run(), close, editor.isActive('codeBlock')),
+          <span key="sep" className="menu-sep" />,
+          item(t('strike'), <s>S</s>, () => chain().toggleStrike().run(), close, editor.isActive('strike')),
+          item(t('highlight'), '▮', () => chain().toggleHighlight().run(), close, editor.isActive('highlight')),
+        ]}
+      </ToolMenu>
+      {btn(t('bold'), <b>B</b>, () => chain().toggleBold().run(), editor.isActive('bold'))}
+      {btn(t('italic'), <i>I</i>, () => chain().toggleItalic().run(), editor.isActive('italic'))}
+      {btn(t('underline'), <u>U</u>, () => chain().toggleUnderline().run(), editor.isActive('underline'))}
       <span className="sep" />
       {btn(t('bullets'), '•≡', () => chain().toggleBulletList().run(), editor.isActive('bulletList'))}
       {btn(t('numbers'), '1.', () => chain().toggleOrderedList().run(), editor.isActive('orderedList'))}
@@ -293,11 +313,7 @@ function Toolbar({ editor, onFile, onLinkNote, locked, onToggleLock, recorder, o
           chain().updateAttributes('taskItem', { due: e.target.value || null }).run()
         }
       />
-      {btn(t('quote'), '❝', () => chain().toggleBlockquote().run(), editor.isActive('blockquote'))}
-      {btn(t('code'), '</>', () => chain().toggleCodeBlock().run(), editor.isActive('codeBlock'))}
       <span className="sep" />
-      {btn(t('table'), '▦', () => chain().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run())}
-      {btn(t('rule'), '—', () => chain().setHorizontalRule().run())}
       {btn(
         t('link'),
         <Icon name="link" size={16} />,
@@ -310,16 +326,20 @@ function Toolbar({ editor, onFile, onLinkNote, locked, onToggleLock, recorder, o
         },
         editor.isActive('link'),
       )}
-      {btn(t('linkNote'), '⛓', onLinkNote)}
+      <ToolMenu label={t('insert')} icon={<Icon name="plus" size={16} />}>
+        {(close) => [
+          item(t('attach'), <Icon name="clip" size={15} />, () => fileInput.current?.click(), close),
+          item(t('table'), '▦', () => chain().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(), close),
+          item(t('rule'), '—', () => chain().setHorizontalRule().run(), close),
+          item(t('linkNote'), '⛓', onLinkNote, close),
+          item(t('record'), <Icon name="mic" size={15} />, () => void recorder.start(), close),
+          item(t('sketch'), <Icon name="pencil" size={15} />, onSketch, close),
+        ]}
+      </ToolMenu>
+      {recorder.recording &&
+        btn(t('stopRecording'), `⏹ ${Math.floor(recorder.seconds / 60)}:${String(recorder.seconds % 60).padStart(2, '0')}`, () => recorder.stop(), true)}
+      <span className="toolbar-gap" />
       {btn(locked ? t('removeLock') : t('lockNote'), locked ? <Icon name="unlock" size={16} /> : <Icon name="lock" size={16} />, onToggleLock, locked)}
-      {btn(
-        recorder.recording ? t('stopRecording') : t('record'),
-        recorder.recording ? `⏹ ${Math.floor(recorder.seconds / 60)}:${String(recorder.seconds % 60).padStart(2, '0')}` : <Icon name="mic" size={16} />,
-        () => (recorder.recording ? recorder.stop() : void recorder.start()),
-        recorder.recording,
-      )}
-      {btn(t('sketch'), <Icon name="pencil" size={16} />, onSketch)}
-      {btn(t('attach'), <Icon name="clip" size={16} />, () => fileInput.current?.click())}
       <input
         ref={fileInput}
         type="file"
@@ -331,6 +351,68 @@ function Toolbar({ editor, onFile, onLinkNote, locked, onToggleLock, recorder, o
         }}
       />
     </div>
+  );
+}
+
+/**
+ * A toolbar button with a menu. The menu is placed with fixed coordinates so the toolbar can scroll sideways (phones) without
+ * clipping it, and it opens upwards when the toolbar sits low on the screen (above the keyboard).
+ */
+function ToolMenu({ label, icon, active = false, children }: {
+  label: string;
+  icon: ReactNode;
+  active?: boolean;
+  children: (close: () => void) => ReactNode;
+}) {
+  const [at, setAt] = useState<CSSProperties | null>(null);
+  const button = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!at) return;
+    const down = (e: Event) => {
+      const target = e.target as Node;
+      if (!panel.current?.contains(target) && !button.current?.contains(target)) setAt(null);
+    };
+    const key = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setAt(null);
+    };
+    const away = () => setAt(null);
+    document.addEventListener('pointerdown', down);
+    document.addEventListener('keydown', key);
+    window.addEventListener('resize', away);
+    return () => {
+      document.removeEventListener('pointerdown', down);
+      document.removeEventListener('keydown', key);
+      window.removeEventListener('resize', away);
+    };
+  }, [at]);
+  const toggle = () => {
+    if (at || !button.current) return setAt(null);
+    const r = button.current.getBoundingClientRect();
+    const left = Math.max(8, Math.min(r.left, window.innerWidth - 240));
+    setAt(r.top > window.innerHeight / 2 ? { left, top: 'auto', bottom: window.innerHeight - r.top + 6 } : { left, top: r.bottom + 6 });
+  };
+  return (
+    <>
+      <button
+        ref={button}
+        type="button"
+        className={`menu-btn ${active ? 'active' : ''}`}
+        title={label}
+        aria-label={label}
+        aria-haspopup="menu"
+        aria-expanded={!!at}
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={toggle}
+      >
+        {icon}<span className="caret" aria-hidden="true">▾</span>
+      </button>
+      {at && (
+        <div ref={panel} className="popover-panel tool-menu" role="menu" style={at} onMouseDown={(e) => e.preventDefault()}>
+          {children(() => setAt(null))}
+        </div>
+      )}
+    </>
   );
 }
 

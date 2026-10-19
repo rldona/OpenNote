@@ -49,13 +49,32 @@ export function App() {
   useEffect(() => setUnlocked(null), [selectedId]);
   const [history, setHistory] = useState<Version[] | null>(null);
   const [prefs, setPrefs] = usePrefs();
-  // Medium and small windows (see layout.ts): the sidebar is a drawer over the content, closed until asked for and closed
+  // Below xl (see layout.ts) the sidebar is a drawer over the content, closed until asked for and closed
   // again when a section is chosen or the window changes size class.
   const size = useLayout();
-  const drawer = size === 'm' || size === 's';
+  const drawer = size !== 'xl';
   const phone = size === 's';
   const [drawerOpen, setDrawerOpen] = useState(false);
   useEffect(() => setDrawerOpen(false), [size]);
+  // Phones: the app follows the part of the screen the keyboard leaves visible, so the toolbar sits right above the keyboard.
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!phone || !vv) return;
+    const root = document.documentElement;
+    const on = () => {
+      root.style.setProperty('--vvh', `${vv.height}px`);
+      root.style.setProperty('--vvtop', `${vv.offsetTop}px`);
+    };
+    on();
+    vv.addEventListener('resize', on);
+    vv.addEventListener('scroll', on);
+    return () => {
+      vv.removeEventListener('resize', on);
+      vv.removeEventListener('scroll', on);
+      root.style.removeProperty('--vvh');
+      root.style.removeProperty('--vvtop');
+    };
+  }, [phone]);
   // Phones: the search field sits above the note list once the Search tab is chosen.
   const [phoneSearch, setPhoneSearch] = useState(false);
   /** A note opened from inside the app on a phone: its back button can step back through the browser history. */
@@ -431,16 +450,31 @@ export function App() {
   // sidebar as a drawer. s: one pane at a time, the editor whenever a note or an overview page is open.
   const noList = overview || prefs.focus;
   const sidebarHidden = !drawer && (prefs.focus || prefs.sidebarHidden);
+  // l: a rail of icons stands in for the sidebar, whose full version opens from it as a drawer.
+  const rail = size === 'l' && !prefs.focus;
   const showSidebar = () => (drawer ? setDrawerOpen(true) : setPrefs({ sidebarHidden: false }));
   const hideSidebar = () => (drawer ? setDrawerOpen(false) : setPrefs({ sidebarHidden: true }));
   /** The button that brings the sidebar back: in the list header when there is one, floating over the page otherwise. */
-  const menuButton = !prefs.focus && !phone && (drawer || prefs.sidebarHidden);
+  const menuButton = !prefs.focus && (size === 'm' || (size === 'xl' && prefs.sidebarHidden));
   const menuFloating = menuButton && noList;
   const phonePane = note || overview ? 'editor' : 'list';
   const goBack = () => {
     if (openedHere.current) window.history.back();
     else select(null);
   };
+  const railItem = (v: View, label: string, icon: IconName) => (
+    <button
+      key={label}
+      className={`icon-btn ${same(view, v) && !note ? 'on' : ''}`}
+      title={label}
+      aria-label={label}
+      aria-current={same(view, v) ? 'page' : undefined}
+      onClick={() => { setView(v); select(null); }}
+    ><Icon name={icon} /></button>
+  );
+  const noteTags = note && (
+    <NoteTags note={note} onPatch={patchNote} backlinks={backlinks} onOpenNote={(id) => { window.location.hash = `/note/${id}`; }} />
+  );
   const searchField = (ref: React.Ref<HTMLInputElement>, onEnter?: () => void) => (
     <div className="search">
       <Icon name="search" size={16} />
@@ -583,6 +617,23 @@ export function App() {
         </div>
       </aside>
 
+      {rail && (
+        <nav className="rail" aria-label={t('menu')}>
+          <button className="icon-btn" title={t('showSidebar')} aria-label={t('showSidebar')} aria-expanded={drawerOpen} onClick={showSidebar}><Icon name="menu" /></button>
+          <button className="icon-btn rail-new" title={t('newNote')} aria-label={t('newNote')} onClick={() => void createNote()}><Icon name="plus" /></button>
+          <button className="icon-btn" title={t('searchTab')} aria-label={t('searchTab')} onClick={openSearch}><Icon name="search" /></button>
+          <span className="rail-sep" />
+          {railItem({ kind: 'home' }, t('home'), 'home')}
+          {railItem({ kind: 'all' }, t('allNotes'), 'notes')}
+          {railItem({ kind: 'pinned' }, t('pinned'), 'pin')}
+          {railItem({ kind: 'tasks' }, t('tasks'), 'tasks')}
+          {railItem({ kind: 'reminders' }, t('reminders'), 'bell')}
+          {railItem({ kind: 'notebooks' }, t('notebooks'), 'notebook')}
+          <span className="rail-gap" />
+          {railItem({ kind: 'trash' }, t('trash'), 'trash')}
+          <button className="icon-btn" title={t('sync')} aria-label={t('sync')} onClick={() => setShowSync(true)}><Icon name="sync" /></button>
+        </nav>
+      )}
       <section className="list-pane">
         <div className="list-head">
           {menuButton && !menuFloating && (
@@ -760,16 +811,17 @@ export function App() {
                 setToast(t('templateSaved'));
                 void refreshMeta();
               }}
-              backlinks={backlinks}
-              onOpenNote={(id) => { window.location.hash = `/note/${id}`; }}
               onBack={phone ? goBack : undefined}
             />
             {isEncryptedHtml(note.content) && unlocked?.id !== note.id ? (
-              <LockedNote content={note.content} onUnlock={(html, cipher) => setUnlocked({ id: note.id, html, cipher })} />
+              <>
+                {noteTags}
+                <LockedNote content={note.content} onUnlock={(html, cipher) => setUnlocked({ id: note.id, html, cipher })} />
+              </>
             ) : unlocked?.id === note.id ? (
-              <NoteEditor key={`${note.id}:${rev}:unlocked`} note={{ ...note, content: unlocked.html }} onSaved={onSaved} initialCipher={unlocked.cipher} />
+              <NoteEditor key={`${note.id}:${rev}:unlocked`} note={{ ...note, content: unlocked.html }} onSaved={onSaved} initialCipher={unlocked.cipher} aside={noteTags} />
             ) : (
-              <NoteEditor key={`${note.id}:${rev}`} note={note} onSaved={onSaved} />
+              <NoteEditor key={`${note.id}:${rev}`} note={note} onSaved={onSaved} aside={noteTags} />
             )}
             <AttachmentsPanel noteId={note.id} refreshKey={note.updatedAt} readOnly={note.trashedAt !== null} />
           </>
@@ -856,27 +908,20 @@ interface MetaProps {
   focus: boolean;
   onFocus: () => void;
   onSaveTemplate: () => Promise<void>;
-  backlinks: { id: string; title: string }[];
-  onOpenNote: (id: string) => void;
   /** Phones: the note fills the screen, and this goes back to where it was opened from. */
   onBack?: () => void;
 }
 
-function NoteMeta({ note, notebooks, onPatch, onTrash, onRestore, onDelete, onHistory, onDuplicate, focus, onFocus, onSaveTemplate, backlinks, onOpenNote, onBack }: MetaProps) {
-  const [tagInput, setTagInput] = useState('');
+function NoteMeta({ note, notebooks, onPatch, onTrash, onRestore, onDelete, onHistory, onDuplicate, focus, onFocus, onSaveTemplate, onBack }: MetaProps) {
   const trashed = note.trashedAt !== null;
-
-  const addTag = () => {
-    const name = tagInput.trim().replace(/,$/, '');
-    setTagInput('');
-    if (name && !note.tags.some((x) => x.toLowerCase() === name.toLowerCase())) void onPatch({ tags: [...note.tags, name] });
-  };
+  const stack = notebooks.find((nb) => nb.id === note.notebookId)?.stack;
 
   return (
     <div className="note-meta-bar">
       {onBack && (
         <button className="icon-btn back-btn" title={t('back')} aria-label={t('back')} onClick={onBack}><Icon name="back" /></button>
       )}
+      {stack && <span className="crumb" title={stack}><Icon name="folder" size={13} /><span>{stack}</span><span aria-hidden="true">›</span></span>}
       <select
         value={note.notebookId}
         disabled={trashed}
@@ -891,29 +936,6 @@ function NoteMeta({ note, notebooks, onPatch, onTrash, onRestore, onDelete, onHi
           <Icon name="link" size={12} /> {new URL(note.sourceUrl).hostname}
         </a>
       )}
-
-      <div className="tags">
-        {note.tags.map((tag) => (
-          <span className="chip" key={tag}>
-            {tag}
-            {!trashed && (
-              <button aria-label={`${t('delete')} ${tag}`} onClick={() => void onPatch({ tags: note.tags.filter((x) => x !== tag) })}>×</button>
-            )}
-          </span>
-        ))}
-        {!trashed && (
-          <input
-            value={tagInput}
-            placeholder={t('addTag')}
-            aria-label={t('addTag')}
-            onChange={(e) => setTagInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(); }
-            }}
-            onBlur={addTag}
-          />
-        )}
-      </div>
 
       <div className="meta-actions">
         {!trashed && (
@@ -942,9 +964,10 @@ function NoteMeta({ note, notebooks, onPatch, onTrash, onRestore, onDelete, onHi
               aria-pressed={note.pinned}
               onClick={() => void onPatch({ pinned: !note.pinned })}
             ><Icon name="pin" /></button>
-            <button className="icon-btn" title={t('history')} aria-label={t('history')} onClick={() => void onHistory()}><Icon name="history" /></button>
+            <button className="icon-btn history-btn" title={t('history')} aria-label={t('history')} onClick={() => void onHistory()}><Icon name="history" /></button>
             <button className="icon-btn focus-btn" title={focus ? t('exitFocus') : t('focusMode')} aria-label={t('focusMode')} aria-pressed={focus} onClick={onFocus}><Icon name="focus" /></button>
             <Popover icon="more" label={t('more')} align="right">
+              <button className="menu-history" onClick={() => void onHistory()}><Icon name="history" size={16} />{t('history')}</button>
               <button onClick={() => void onDuplicate()}><Icon name="copy" size={16} />{t('duplicate')}</button>
               <button onClick={() => void onSaveTemplate()}><Icon name="template" size={16} />{t('saveTemplate')}</button>
               <a href={`/api/notes/${note.id}/export.md`} download><Icon name="download" size={16} />{t('exportMd')}</a>
@@ -958,6 +981,49 @@ function NoteMeta({ note, notebooks, onPatch, onTrash, onRestore, onDelete, onHi
             <button className="primary" onClick={() => void onRestore()}>{t('restore')}</button>
             <button className="danger" onClick={() => void onDelete()}>{t('deleteForever')}</button>
           </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Tags (and the notes that link here) under the title, where they scroll with the note. */
+function NoteTags({ note, onPatch, backlinks, onOpenNote }: {
+  note: Note;
+  onPatch: (p: Partial<Note>) => Promise<void>;
+  backlinks: { id: string; title: string }[];
+  onOpenNote: (id: string) => void;
+}) {
+  const [tagInput, setTagInput] = useState('');
+  const trashed = note.trashedAt !== null;
+  const addTag = () => {
+    const name = tagInput.trim().replace(/,$/, '');
+    setTagInput('');
+    if (name && !note.tags.some((x) => x.toLowerCase() === name.toLowerCase())) void onPatch({ tags: [...note.tags, name] });
+  };
+  return (
+    <div className="note-tags">
+      <div className="tags">
+        <Icon name="tag" size={14} />
+        {note.tags.map((tag) => (
+          <span className="chip" key={tag}>
+            {tag}
+            {!trashed && (
+              <button aria-label={`${t('delete')} ${tag}`} onClick={() => void onPatch({ tags: note.tags.filter((x) => x !== tag) })}>×</button>
+            )}
+          </span>
+        ))}
+        {!trashed && (
+          <input
+            value={tagInput}
+            placeholder={t('addTag')}
+            aria-label={t('addTag')}
+            onChange={(e) => setTagInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(); }
+            }}
+            onBlur={addTag}
+          />
         )}
       </div>
       {backlinks.length > 0 && (

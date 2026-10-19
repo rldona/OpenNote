@@ -19,6 +19,15 @@ when a `v*` tag is pushed; the section of the tag becomes the release notes.
 - On touch screens buttons are at least 44 px, rename/delete show on the selected notebook (there is no hover), and the keyboard
   tip on Home is hidden. Installed on a phone, the app keeps clear of the notch and the home indicator and follows the visible
   height of the screen.
+- **Note editor.** The title and tags now scroll with the note and only the formatting toolbar stays in place, so more of the
+  note fits on screen. The toolbar is grouped: **Aa** (normal text, headings, quote, code block, strikethrough, highlight), bold /
+  italic / underline, lists and checklists, link, and **+** to insert a file, table, divider, note link, audio or drawing. On
+  phones it sits at the bottom of the note, right above the keyboard.
+- The note header is a single row: the stack and notebook on the left, the note actions on the right. Tags moved under the
+  title. On tablets and phones, History is in the ⋯ menu.
+- **Tablets in landscape and small laptops** (1024–1279 px) show a rail of icons (new note, search, Home, All notes, Pinned,
+  Tasks, Reminders, Notebooks, Trash, Sync) instead of the full sidebar, which opens from the rail as a drawer. The note gets
+  about 160 px more width.
 
 ## [0.4.3] - 2026-10-19
 
