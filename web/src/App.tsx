@@ -6,22 +6,12 @@ import { NoteEditor } from './Editor';
 import { SyncPanel } from './SyncPanel';
 import { LockedNote } from './Locked';
 import { Icon, type IconName } from './Icon';
+import { parseHash, toHash, type View } from './route';
 import { PromptHost, askText } from './Prompt';
 import { NotebooksOverview } from './Notebooks';
 import { ACCENTS, SPLIT_DEFAULT, clampSplit, usePrefs, type Accent, type SortKey, type Theme } from './prefs';
 import { isEncryptedHtml, type NoteCipher } from './crypto';
 import { locale, t } from './i18n';
-
-type View =
-  | { kind: 'home' }
-  | { kind: 'notebooks' }
-  | { kind: 'all' }
-  | { kind: 'pinned' }
-  | { kind: 'reminders' }
-  | { kind: 'tasks' }
-  | { kind: 'trash' }
-  | { kind: 'notebook'; id: string }
-  | { kind: 'tag'; name: string };
 
 /** Same breakpoint as the stacked layout in styles.css. */
 const NARROW_QUERY = '(max-width: 900px)';
@@ -48,7 +38,7 @@ const fmtDate = (ms: number) =>
   new Date(ms).toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' });
 
 export function App() {
-  const [view, setView] = useState<View>({ kind: 'home' });
+  const [view, setView] = useState<View>(() => parseHash(window.location.hash).view ?? { kind: 'all' });
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [notebooks, setNotebooks] = useState<Notebook[]>([]);
@@ -57,7 +47,7 @@ export function App() {
   const [notes, setNotes] = useState<NoteSummary[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [taskStatus, setTaskStatus] = useState<'open' | 'done'>('open');
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(() => parseHash(window.location.hash).note);
   const [note, setNote] = useState<Note | null>(null);
   const [rev, setRev] = useState(0);
   const [templates, setTemplates] = useState<NoteSummary[]>([]);
@@ -212,20 +202,39 @@ export function App() {
     };
   }, [refreshList, refreshMeta]);
 
-  // Internal links look like #/note/<id>.
+  // The address bar follows where you are (see route.ts): reloading, the back button and copied links land in the same place.
+  useEffect(() => {
+    const wanted = toHash(view, selectedId);
+    const current = window.location.hash;
+    if (current === wanted || (wanted === '#/' && current === '')) return;
+    // An older link (#/note/<id>) is rewritten in place; anything else is a step the back button can undo.
+    if (parseHash(current).view === null) window.history.replaceState(null, '', wanted);
+    else window.history.pushState(null, '', wanted);
+  }, [view, selectedId]);
+
+  // ...and the other way round: the back/forward buttons or a link to #/note/<id> change what is shown.
   useEffect(() => {
     const go = () => {
-      const m = /^#\/note\/([\w-]+)$/.exec(window.location.hash);
-      if (m) {
-        setSelectedId(m[1]!);
-        setView((v) => (v.kind === 'home' || v.kind === 'notebooks' ? { kind: 'all' } : v));
-      }
-      else if (window.location.hash === '#/tasks') setView({ kind: 'tasks' });
+      const r = parseHash(window.location.hash);
+      setSelectedId(r.note);
+      setHistory(null);
+      setView((cur) => {
+        const next = r.view ?? (cur.kind === 'home' || cur.kind === 'notebooks' ? { kind: 'all' as const } : cur);
+        return same(cur, next) ? cur : next;
+      });
     };
-    go();
     window.addEventListener('hashchange', go);
-    return () => window.removeEventListener('hashchange', go);
+    window.addEventListener('popstate', go);
+    return () => {
+      window.removeEventListener('hashchange', go);
+      window.removeEventListener('popstate', go);
+    };
   }, []);
+
+  // A notebook that no longer exists (deleted on another device, old link): show all notes instead of an empty list.
+  useEffect(() => {
+    if (view.kind === 'notebook' && notebooks.length > 0 && !notebooks.some((n) => n.id === view.id)) setView({ kind: 'all' });
+  }, [view, notebooks]);
 
   useEffect(() => {
     if (!selectedId) return setBacklinks([]);

@@ -16,6 +16,10 @@ when a `v*` tag is pushed; the section of the tag becomes the release notes.
   remembered.
 
 ### Fixed
+- **Reloading the page no longer sends you back to Home.** The address now says where you are (`#/notebook/…/note/…`, `#/tag/…`,
+  `#/tasks`, `#/notes`…), so reloading, the browser's back and forward buttons and a copied link all return to the same section and
+  the same open note. Older note links keep working, and an address that points to a notebook that no longer exists falls back to
+  "All notes".
 - Web sync panel: when Google says it needs you to connect again, the status now shows Google's reason and a **Connect again**
   button that reconnects and syncs straight away (before, the panel said "Connected" and offered no way out except Disconnect).
 - **Web version: Google's account chooser kept appearing** even after signing in. The access token only lived in memory, so every
