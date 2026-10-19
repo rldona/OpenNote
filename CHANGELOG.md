@@ -7,6 +7,7 @@ when a `v*` tag is pushed; the section of the tag becomes the release notes.
 ## [Unreleased]
 
 ### Fixed
+- Web version: on the very first visit the app could start before its service worker was in control and show an empty library; it now waits longer and reloads itself once if needed.
 - Web version: a new release now shows up on the next visit instead of up to ten minutes later (the page is revalidated).
 
 ### Added

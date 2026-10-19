@@ -13,11 +13,32 @@ export async function bootStandalone(): Promise<void> {
   await navigator.serviceWorker.register('./standalone-sw.js');
   await navigator.serviceWorker.ready;
   if (!navigator.serviceWorker.controller) {
-    // First visit: the service worker is active but does not control this page yet.
+    // First visit: the service worker is active but does not control this page yet. Wait for it; if it still does not,
+    // reload once (a page loaded under an active service worker is controlled from the start).
     await new Promise<void>((resolve) => {
       navigator.serviceWorker.addEventListener('controllerchange', () => resolve(), { once: true });
-      setTimeout(resolve, 3000);
+      setTimeout(resolve, 8000);
     });
+    if (!navigator.serviceWorker.controller) {
+      const KEY = 'opennote.sw-reload';
+      let already = false;
+      try {
+        already = sessionStorage.getItem(KEY) === '1';
+        sessionStorage.setItem(KEY, '1');
+      } catch {
+        /* no sessionStorage: allow one attempt */
+      }
+      if (!already) {
+        location.reload();
+        return new Promise<void>(() => {}); // the page is going away
+      }
+      throw new Error('The service worker did not start. Reload the page, and check that the browser allows service workers for this site.');
+    }
+  }
+  try {
+    sessionStorage.removeItem('opennote.sw-reload');
+  } catch {
+    /* ignore */
   }
 
   const worker = new Worker(new URL('./db-worker.ts', import.meta.url), { type: 'module' });
