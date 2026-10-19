@@ -32,6 +32,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.opennote
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         FRAMEWORK_SEARCH_PATHS: "$(SRCROOT)/../composeApp/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)"
         OTHER_LDFLAGS: "$(inherited) -framework ComposeApp"
         ENABLE_USER_SCRIPT_SANDBOXING: NO
