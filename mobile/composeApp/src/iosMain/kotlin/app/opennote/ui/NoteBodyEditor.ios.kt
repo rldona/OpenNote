@@ -45,6 +45,7 @@ private object EditorWebView {
             val page = NSBundle.mainBundle.URLForResource("index", "html", "editor")
                 ?: error("editor/index.html is missing from the app bundle")
             loadFileURL(page, allowingReadAccessToURL = page.URLByDeletingLastPathComponent!!)
+            IosHooks.configureEditorWebView?.invoke(this)
         }
     }
 }
@@ -60,6 +61,7 @@ actual fun NoteBodyEditor(
     noteKey: String,
     html: String,
     dark: Boolean,
+    visible: Boolean,
     controller: EditorController,
     onEvent: (EditorEvent) -> Unit,
     modifier: Modifier,
@@ -79,5 +81,17 @@ actual fun NoteBodyEditor(
         if (ready) webView.evaluateJavaScript(loadScript(html, dark), completionHandler = null)
         onDispose { }
     }
-    UIKitView(factory = { webView.removeFromSuperview(); webView }, modifier = modifier)
+    UIKitView(
+        factory = { webView.removeFromSuperview(); webView },
+        update = { it.hidden = !visible },
+        modifier = modifier,
+    )
+}
+
+/**
+ * Native setup the Kotlin side leaves to the Swift host (iosApp/iosApp/iOSApp.swift), set before the first screen:
+ * removing WKWebView's own keyboard bar needs the Objective-C runtime, which is much simpler from Swift.
+ */
+object IosHooks {
+    var configureEditorWebView: ((WKWebView) -> Unit)? = null
 }

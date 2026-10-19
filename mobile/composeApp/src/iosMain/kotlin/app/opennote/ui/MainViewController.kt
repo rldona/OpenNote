@@ -6,5 +6,5 @@ import platform.UIKit.UIViewController
 /** Entry point used by iosApp (Swift): the whole UI is Compose. */
 fun MainViewController(): UIViewController {
     warmUpEditor()
-    return ComposeUIViewController { App() }
+    return ComposeUIViewController { App() }.also { installBackGesture(it.view) }
 }

@@ -5,7 +5,7 @@ body of a note is the web editor (`web/src/embed`) in the platform's WebView, so
 and desktop. The sync format is shared with the TypeScript apps and specified in [docs/SYNC-FORMAT.md](../docs/SYNC-FORMAT.md).
 
 ```
-shared/       sync format, encryption (scrypt, AES-256-GCM, HMAC), SQLite; JVM, Android and iOS targets
+shared/       the data layer: store, search, sync engine, encryption, Google Drive and sign-in; JVM, Android, iOS
 composeApp/   UI (Compose Multiplatform) and the WebView hosts of the editor
 androidApp/   Android entry point; ships web/dist-embed as assets/editor
 iosApp/       iOS entry point (SwiftUI host), Xcode project generated with XcodeGen from project.yml
@@ -36,4 +36,5 @@ The shared tests read the contract fixtures in `server/test/fixtures/sync-v1` an
 
 ## Status
 
-Phase 0 (spike). Results and open points: [docs/MOBILE-SPIKE.md](../docs/MOBILE-SPIKE.md).
+Phase 1 (core) done; the UI is still the phase 0 spike. Details and open points: [docs/MOBILE-SPIKE.md](../docs/MOBILE-SPIKE.md).
+CI: `.github/workflows/mobile.yml`.

@@ -43,8 +43,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.ExperimentalComposeUiApi
-import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -95,11 +93,14 @@ fun App() {
                     else slideInHorizontally { -it / 3 } togetherWith slideOutHorizontally { it }
                 },
             ) { note ->
+                // Native views (the editor's WebView) do not take part in Compose's animations: keep it hidden until the
+                // slide has finished, so it never shows on top of the list.
+                val settled = !transition.isRunning
                 if (note == null) {
                     NoteList(notes, listState) { open = it }
                 } else {
                     BackHandlerCompat { open = null }
-                    NoteScreen(note, dark, onBack = { open = null }) { html ->
+                    NoteScreen(note, dark, settled, onBack = { open = null }) { html ->
                         val i = notes.indexOfFirst { it.id == note.id }
                         if (i >= 0) notes[i] = notes[i].copy(html = html)
                     }
@@ -131,7 +132,7 @@ private fun NoteList(notes: List<SpikeNote>, listState: LazyListState, onOpen: (
 }
 
 @Composable
-private fun NoteScreen(note: SpikeNote, dark: Boolean, onBack: () -> Unit, onChange: (String) -> Unit) {
+private fun NoteScreen(note: SpikeNote, dark: Boolean, settled: Boolean, onBack: () -> Unit, onChange: (String) -> Unit) {
     val controller = remember { EditorController() }
     var state by remember { mutableStateOf(EditorState()) }
     var title by remember(note.id) { mutableStateOf(note.title) }
@@ -151,6 +152,7 @@ private fun NoteScreen(note: SpikeNote, dark: Boolean, onBack: () -> Unit, onCha
             noteKey = note.id,
             html = note.html,
             dark = dark,
+            visible = settled,
             controller = controller,
             onEvent = { e ->
                 when (e) {
@@ -202,8 +204,6 @@ private fun FormatBar(state: EditorState, controller: EditorController) {
     }
 }
 
-/** System back: the back gesture or button on Android, the swipe from the left edge on iOS. */
-@OptIn(ExperimentalComposeUiApi::class)
-@Suppress("DEPRECATION") // NavigationEventHandler replaces it; this is enough for the spike's single back step.
+/** System back: the back gesture or button on Android, the swipe from the left edge on iOS (see MainViewController). */
 @Composable
-private fun BackHandlerCompat(onBack: () -> Unit) = BackHandler(enabled = true, onBack = onBack)
+expect fun BackHandlerCompat(onBack: () -> Unit)

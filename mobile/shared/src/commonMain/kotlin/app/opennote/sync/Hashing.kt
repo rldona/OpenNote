@@ -9,6 +9,38 @@ object Hashing {
 
     fun sha256Hex(text: String): String = sha256(text.encodeToByteArray()).toHex()
 
+    /** MD5 (RFC 1321), only as the attachment fingerprint the format carries; never for security. */
+    fun md5Hex(data: ByteArray): String {
+        val s = intArrayOf(7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20,
+            4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21)
+        val k = IntArray(64) { i -> (kotlin.math.abs(kotlin.math.sin((i + 1).toDouble())) * 4294967296.0).toLong().toInt() }
+        val bitLen = data.size.toLong() * 8
+        val padLen = ((56 - (data.size + 1) % 64) + 64) % 64
+        val msg = data + byteArrayOf(0x80.toByte()) + ByteArray(padLen) + ByteArray(8) { i -> (bitLen ushr (8 * i)).toByte() }
+        var a0 = 0x67452301; var b0 = -0x10325477; var c0 = -0x67452302; var d0 = 0x10325476
+        val m = IntArray(16)
+        for (chunk in msg.indices step 64) {
+            for (i in 0 until 16) {
+                val o = chunk + i * 4
+                m[i] = (msg[o].toInt() and 0xFF) or ((msg[o + 1].toInt() and 0xFF) shl 8) or ((msg[o + 2].toInt() and 0xFF) shl 16) or ((msg[o + 3].toInt() and 0xFF) shl 24)
+            }
+            var a = a0; var b = b0; var c = c0; var d = d0
+            for (i in 0 until 64) {
+                val (f, g) = when (i / 16) {
+                    0 -> ((b and c) or (b.inv() and d)) to i
+                    1 -> ((d and b) or (d.inv() and c)) to (5 * i + 1) % 16
+                    2 -> (b xor c xor d) to (3 * i + 5) % 16
+                    else -> (c xor (b or d.inv())) to (7 * i) % 16
+                }
+                val t = d; d = c; c = b
+                b += (a + f + k[i] + m[g]).rotateLeft(s[i])
+                a = t
+            }
+            a0 += a; b0 += b; c0 += c; d0 += d
+        }
+        return intArrayOf(a0, b0, c0, d0).flatMap { v -> List(4) { i -> (v ushr (8 * i)).toByte() } }.toByteArray().toHex()
+    }
+
     fun hmacSha256(key: ByteArray, data: ByteArray): ByteArray {
         val k = if (key.size > 64) sha256(key) else key
         val ipad = ByteArray(64) { i -> ((if (i < k.size) k[i].toInt() else 0) xor 0x36).toByte() }

@@ -2,7 +2,8 @@
  * The sync fixtures (docs/SYNC-FORMAT.md, section 6) are the contract with the other implementations. These tests keep them
  * honest: this implementation still derives exactly what expected.json says, and a fresh device that syncs from a copy of
  * each location ends up with the expected notes. A location written by the Kotlin implementation is checked the same way
- * when its tests have produced one (mobile/shared/build/sync-fixtures-kotlin).
+ * when its tests have produced one (mobile/shared/build/sync-fixtures-kotlin): a Kotlin device that joined the encrypted
+ * fixture, edited, added and deleted notes, and synced back.
  */
 import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -85,7 +86,8 @@ describe('sync fixtures (docs/SYNC-FORMAT.md)', () => {
     });
   }
 
-  it.skipIf(!existsSync(KOTLIN))('a location written by the Kotlin implementation reads back the same notes', async () => {
+  // CI sets OPENNOTE_REQUIRE_KOTLIN_LOCATION after running the Kotlin tests, so a missing location fails instead of skipping.
+  it.skipIf(!existsSync(KOTLIN) && process.env.OPENNOTE_REQUIRE_KOTLIN_LOCATION !== '1')('a location written by the Kotlin implementation reads back the same notes', async () => {
     const meta = JSON.parse(readFileSync(join(KOTLIN, 'expected.json'), 'utf8')) as { passphrase: string | null; notes: SyncNote[] };
     const got = await readAsNewDevice(join(KOTLIN, 'location'), meta.passphrase);
     expect(comparable(got)).toEqual(comparable([...meta.notes].sort((a, b) => a.id.localeCompare(b.id))));

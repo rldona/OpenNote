@@ -40,3 +40,13 @@ fun deleteRecursively(path: String) {
     if (SystemFileSystem.metadataOrNull(p)?.isDirectory == true) SystemFileSystem.list(p).forEach { deleteRecursively(it.toString()) }
     SystemFileSystem.delete(p)
 }
+
+fun copyRecursively(from: String, to: String) {
+    val src = Path(from)
+    if (SystemFileSystem.metadataOrNull(src)?.isDirectory == true) {
+        SystemFileSystem.createDirectories(Path(to))
+        SystemFileSystem.list(src).forEach { copyRecursively(it.toString(), "$to/${it.name}") }
+    } else {
+        writeBytes(to, readBytes(from))
+    }
+}

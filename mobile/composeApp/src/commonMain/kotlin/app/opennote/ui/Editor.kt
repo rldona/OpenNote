@@ -64,6 +64,7 @@ expect fun NoteBodyEditor(
     noteKey: String,
     html: String,
     dark: Boolean,
+    visible: Boolean,
     controller: EditorController,
     onEvent: (EditorEvent) -> Unit,
     modifier: Modifier = Modifier,

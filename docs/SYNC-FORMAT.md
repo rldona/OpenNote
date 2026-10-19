@@ -164,7 +164,8 @@ As in [SYNC.md](SYNC.md) and `SyncEngine.syncNote`:
 - A device first pulls, then pushes. When it writes its record, its own counter becomes `max(base[me], ownRecord.vv[me]) + 1`
   where `base` merges every vector it has applied.
 - Among concurrent live records the winner is the greatest `note.updatedAt`, ties broken by the greater `deviceId`
-  (code-unit order); every other live record whose `noteHash` differs becomes a conflict copy.
+  (code-unit order; the TypeScript engine uses `localeCompare` here, which gives the same order for the lowercase UUIDs
+  devices use as ids); every other live record whose `noteHash` differs becomes a conflict copy.
 - Local edits against a newer remote: the newer `updatedAt` wins (ties: greater device id), the other becomes a conflict copy.
 - Edit beats delete. Deleting a note writes a tombstone with a higher vector; a device removes its own tombstone files 90
   days after the deletion.
