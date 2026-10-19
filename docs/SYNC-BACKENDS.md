@@ -28,7 +28,8 @@ ETag, md5…) so the engine skips files it has already parsed. A shared contract
 | --- | --- | --- |
 | 0 | Transport interface; folder sync on top of it; in-memory transport and contract tests | **done** |
 | 1a | **SQL driver and attachment storage abstracted** under `NoteStore`; the whole server test suite also runs on sqlite-wasm | **done** |
-| 1b | Run OpenNote **without a local server**: the rest of the portable core in the browser (see below) | next |
+| 1b | Run OpenNote **without a local server**, entirely in the browser | **done** (not hosted yet) |
+| 1c | Host the browser build (GitHub Pages) and make it installable; sync inside the browser build (needs the sync cipher on WebCrypto) | next |
 | 2 | `GoogleDriveTransport` + "Sign in with Google" | |
 | 3 | Settings UI: add / remove sync destinations; per-destination passphrase; desktop uses the same transport | |
 | 4 | Android: installable PWA first; a Capacitor shell only if the PWA falls short | |
@@ -43,7 +44,44 @@ ETag, md5…) so the engine skips files it has already parsed. A shared contract
 - **`npm test` now runs the full suite twice: on `node:sqlite` and on sqlite-wasm** (`OPENNOTE_TEST_DRIVER=wasm`). Both pass
   all tests, so the store, the HTTP API, search, sync and encrypted notes behave identically on both engines.
 
-### Phase 1b: the client must work alone
+### Phase 1b (done): the app running in the browser
+
+`npm run build:standalone` writes static files to `web/dist-standalone`; any static file server can host them (try
+`npx serve web/dist-standalone`). It is the same React UI and the same server code, running on the visitor's own device:
+
+```
+ page (React UI)  ──fetch/<img> /api/…──►  service worker  ──►  tab that owns the DB  ──►  DB worker
+                                                                     (Hono app + NoteStore on sqlite-wasm, OPFS storage)
+```
+
+- `web/src/standalone/db-worker.ts`: opens sqlite-wasm on OPFS (SAH pool), applies the schema, creates the Hono app with
+  `standalone: true` (no Host/Origin checks: there is no network) and answers requests posted by the page.
+- `web/public-standalone/standalone-sw.js`: answers every same-origin `/api/…` request by asking the owner tab, and caches the
+  app files so it opens offline. Because it answers *sub-resource* requests of a controlled page, `<img src="/api/attachments/…">`
+  and uploads work with no change to the UI, even when the site is served from a sub-path such as `/OpenNote/`.
+- `web/src/standalone/boot.ts`: registers the service worker, starts the worker, relays requests, and turns `<a download>`
+  links to `/api/…` into fetch-and-save (a navigation is not answered by the service worker).
+- One tab owns the database (a Web Lock). Other tabs of the same site work through it; if the owner tab is closed they must
+  be reloaded.
+- Browser stand-ins for Node modules (Vite aliases, only in this build): `shims/crypto.ts` (md5/sha256 via `@noble/hashes`,
+  random ids) and `shims/node-stub.ts` (fs/path/os/net/dns/child_process: present so the imports resolve, throw if used). The
+  folder-sync, web-clipper and attachment-indexing code is bundled but never runs there. Attachments are stored in the database
+  (`SqlBlobStore`).
+- Found and fixed along the way: `turndown`'s browser build needs `DOMParser` (absent in workers), so Markdown/zip export now
+  hands it a `linkedom` node instead of a string; sqlite-wasm rejects an empty bind list.
+- Verified in Chrome with the built files served by a plain static server: notes, accent-insensitive search, tags, tasks,
+  attachments (upload and read back), Markdown/ENEX/zip export, Markdown import, persistence after reload, and a second tab
+  sharing the same data. Not covered: Firefox and Safari (OPFS SAH pool and service workers differ), other tabs after the owner
+  closes, very large attachments. The in-app browser of the desktop tool cannot register service workers, so it cannot run this build.
+
+### Phase 1c: what is left before this is a product
+
+- Hosting (GitHub Pages) and an install prompt; a clear message when the browser lacks service workers / Web Locks / OPFS.
+- Sync inside the browser build: the engine's cipher (`createCipheriv`, `scryptSync`, `createHmac`) must move to WebCrypto, which
+  is asynchronous, so the codec becomes async.
+- Remove the first-load wait for the service worker to take control (currently up to 3 s on the very first visit).
+
+### Design notes for phase 1b (original plan)
 
 Today notes live in a Node process (`node:sqlite`, FTS5). A phone cannot run that, so the same code has to run in the
 browser:

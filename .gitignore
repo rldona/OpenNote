@@ -7,3 +7,5 @@ extension/dist
 extension/dist-firefox
 desktop/dist
 desktop/release
+
+web/dist-standalone

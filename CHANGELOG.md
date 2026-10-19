@@ -6,6 +6,14 @@ when a `v*` tag is pushed; the section of the tag becomes the release notes.
 
 ## [Unreleased]
 
+### Added
+- **OpenNote can run entirely in a browser, with no server** (`npm run build:standalone`, static files in
+  `web/dist-standalone`). Same interface and same code: the database (SQLite compiled to WebAssembly) and the notes live in the
+  browser's own storage. Not published anywhere yet; this is the groundwork for opening your notes on a phone or tablet.
+
+### Fixed
+- Markdown export of a note works the same everywhere (the Markdown converter now receives a parsed document instead of text).
+
 ### Changed
 - Sync internals: the merge engine now talks to a storage **transport** instead of the file system, so more destinations
   (Google Drive, WebDAV…) can be added without touching the merge rules. Folder sync behaves exactly as before.

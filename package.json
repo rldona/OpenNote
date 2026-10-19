@@ -24,7 +24,8 @@
     "typecheck": "npm run typecheck -w server && npm run typecheck -w web && npm run typecheck -w extension && npm run typecheck -w desktop",
     "build:extension": "npm run build -w extension",
     "desktop:dev": "npm run build && npm run dev -w desktop",
-    "desktop:pack": "npm run build && npm run pack -w desktop"
+    "desktop:pack": "npm run build && npm run pack -w desktop",
+    "build:standalone": "npm run build:standalone -w web"
   },
   "devDependencies": {
     "npm-run-all2": "^7.0.2"

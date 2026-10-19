@@ -17,12 +17,25 @@ function safeFilename(name: string): string {
   return name.replace(/[^\w.\- ]+/g, '_').slice(0, 120) || 'file';
 }
 
-export function createApp(store: NoteStore, sync?: SyncEngine, clipOptions?: ClipOptions, indexer?: AttachmentIndexer): Hono {
+export interface AppOptions {
+  /**
+   * The app runs inside the browser page itself (no network socket): requests come from our own page through a service
+   * worker, so there is no foreign host or origin to guard against and the checks below are skipped.
+   */
+  standalone?: boolean;
+}
+
+export function createApp(store: NoteStore, sync?: SyncEngine, clipOptions?: ClipOptions, indexer?: AttachmentIndexer, options: AppOptions = {}): Hono {
   const app = new Hono();
 
   // The API controls local files, so only accept requests addressed to this machine
   // (blocks DNS rebinding) and non-GET requests coming from our own origin (blocks CSRF).
   app.use('*', async (c, next) => {
+    if (options.standalone) {
+      await next();
+      c.header('X-Content-Type-Options', 'nosniff');
+      return;
+    }
     const host = c.req.header('host') ?? '';
     if (!LOCAL_HOST.test(host)) return c.text('forbidden host', 403);
     const origin = c.req.header('origin');

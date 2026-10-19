@@ -1,3 +1,4 @@
+import { parseHTML } from 'linkedom';
 import TurndownService from 'turndown';
 import type { Attachment, Note } from './store.js';
 
@@ -29,7 +30,11 @@ export function noteToMarkdown(
   const html = note.content.replace(/\/api\/attachments\/([0-9a-f-]+)/g, (_, id: string) =>
     encodeURI(`attachments/${names.get(id) ?? id}`),
   );
-  const body = td.turndown(html);
+  // Turndown is given a DOM node instead of a string: its browser build parses strings with DOMParser, which does not exist
+  // inside a Web Worker. linkedom works the same everywhere.
+  const root = parseHTML('<!doctype html><html><body></body></html>').document.createElement('div');
+  root.innerHTML = html;
+  const body = td.turndown(root as unknown as HTMLElement);
   const meta = [
     '---',
     `title: ${JSON.stringify(note.title || 'Untitled')}`,

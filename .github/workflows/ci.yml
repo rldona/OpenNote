@@ -23,4 +23,5 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - run: npm run build:standalone -w web
       - run: npm run build:extension

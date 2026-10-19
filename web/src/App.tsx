@@ -363,7 +363,7 @@ export function App() {
       <aside className="sidebar">
         <div className="sidebar-top">
           <button className="brand" onClick={() => { setView({ kind: 'home' }); select(null); }} aria-label={`OpenNote — ${t('home')}`}>
-            <img src="/icons/icon-192.png" alt="" width="26" height="26" />
+            <img src={`${import.meta.env.BASE_URL}icons/icon-192.png`} alt="" width="26" height="26" />
             <span>OpenNote</span>
           </button>
           <button className="icon-btn" title={t('hideSidebar')} aria-label={t('hideSidebar')} onClick={() => setPrefs({ sidebarHidden: true })}>

@@ -6,17 +6,21 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build:standalone": "tsc --noEmit && vite build --mode standalone"
   },
   "dependencies": {
+    "@noble/hashes": "^2.4.0",
+    "@sqlite.org/sqlite-wasm": "3.53.4-build2",
+    "@tiptap/extension-highlight": "^3.0.0",
     "@tiptap/extension-image": "^3.0.0",
     "@tiptap/extension-list": "^3.0.0",
     "@tiptap/extension-placeholder": "^3.0.0",
     "@tiptap/extension-table": "^3.0.0",
-    "@tiptap/extension-highlight": "^3.0.0",
     "@tiptap/pm": "^3.0.0",
     "@tiptap/react": "^3.0.0",
     "@tiptap/starter-kit": "^3.0.0",
+    "buffer": "^6.0.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
