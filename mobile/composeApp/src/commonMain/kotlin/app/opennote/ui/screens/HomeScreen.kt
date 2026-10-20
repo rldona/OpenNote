@@ -122,12 +122,10 @@ fun HomeScreen() {
     var sketching by remember { mutableStateOf(false) }
     var creatingNotebook by remember { mutableStateOf(false) }
 
-    // The row with the account button stays put; everything under it scrolls.
-    Column(Modifier.fillMaxSize().statusBarsPadding()) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).statusBarsPadding().padding(bottom = 24.dp)) {
         Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 8.dp, top = ScreenTop).heightIn(min = TopRowHeight), verticalAlignment = Alignment.CenterVertically) {
             AccountButton()
         }
-    Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
         Text(s.myOpenNote, Modifier.fillMaxWidth(), fontSize = 32.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
         Text(s.longDate(today.dayOfWeek.ordinal, today.day, today.month.ordinal, today.year), Modifier.fillMaxWidth().padding(top = 4.dp), fontSize = 16.sp, color = c.onSurfaceVariant, textAlign = TextAlign.Center)
 
@@ -191,7 +189,6 @@ fun HomeScreen() {
                 }
             }
         }
-    }
     }
 
     if (recording) RecorderDialog(onDone = { f -> recording = false; env.newNoteWith(listOf(f), s.audioTitle) }, onClose = { recording = false })
