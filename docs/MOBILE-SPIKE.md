@@ -140,7 +140,7 @@ the tests in the iOS simulator and the iOS app build. Not run on GitHub yet when
 | iOS: WKWebView's own keyboard bar (↑ ↓ ✓) under ours | **Fixed** in the Swift host (`iosApp`), with the usual content-view subclass trick. |
 | iOS: scrypt 1.35 s and a slow first frame in the debug build | **Partly.** The derived key is now kept in the Keychain (phase 3), so scrypt runs once per device. The first frame still needs a release build on a device. |
 | Android: soft keyboard and `imePadding` | **Open.** The emulator on this Mac is too loaded to judge (2 GB of RAM, constant swapping, ANRs even for system apps); needs a device. |
-| Android: 60 fps scrolling on a mid-range phone | **Open.** Same reason. |
+| Android: 60 fps scrolling on a mid-range phone | **Partly.** On a Samsung SM-S948B (120 Hz) with the release build: 4.5 % janky frames, 99th percentile 14 ms, about two slow frames per screen change (the first frame of the new screen). Debug builds are about twice as janky: judge smoothness on release builds. A mid-range phone is still to try. |
 
 ## Results of phase 0 (for reference)
 

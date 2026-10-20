@@ -36,3 +36,5 @@ actual object QuickPrefs {
     actual fun get(key: String): String? = prefs.getString(key, null)
     actual fun set(key: String, value: String?) { prefs.edit().apply { if (value == null) remove(key) else putString(key, value) }.apply() }
 }
+
+actual val backFollowsFinger: Boolean = false

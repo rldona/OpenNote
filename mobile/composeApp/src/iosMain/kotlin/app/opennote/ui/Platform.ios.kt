@@ -29,3 +29,5 @@ actual object QuickPrefs {
         if (value == null) defaults.removeObjectForKey("opennote.$key") else defaults.setObject(value, "opennote.$key")
     }
 }
+
+actual val backFollowsFinger: Boolean = true

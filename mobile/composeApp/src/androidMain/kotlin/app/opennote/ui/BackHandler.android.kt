@@ -1,10 +1,28 @@
 package app.opennote.ui
 
+import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.ExperimentalComposeUiApi
-import androidx.compose.ui.backhandler.BackHandler
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
+import kotlin.coroutines.cancellation.CancellationException
 
-@OptIn(ExperimentalComposeUiApi::class)
-@Suppress("DEPRECATION") // NavigationEventHandler replaces it; one back step per screen is all the app needs for now.
+/**
+ * Android's back, predictive (Android 14 and later): while the gesture runs its progress goes to [BackGesture] and the
+ * screen shrinks and shows the previous one behind (App.kt); letting go goes back, swiping back in cancels. The back button
+ * and older versions just go back.
+ */
 @Composable
-actual fun BackHandlerCompat(onBack: () -> Unit) = BackHandler(enabled = true, onBack = onBack)
+actual fun BackHandlerCompat(onBack: () -> Unit) {
+    val current by rememberUpdatedState(onBack)
+    PredictiveBackHandler(enabled = true) { events ->
+        try {
+            events.collect { e -> BackGesture.progress.value = e.progress }
+            // Cleared before going back, so the transition finishes the move instead of jumping to the end.
+            BackGesture.progress.value = null
+            current()
+        } catch (e: CancellationException) {
+            BackGesture.progress.value = null
+            throw e
+        }
+    }
+}

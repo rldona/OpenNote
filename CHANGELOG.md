@@ -35,6 +35,13 @@ when a `v*` tag is pushed; the section of the tag becomes the release notes.
   and desktop apps gain the account button too, at the top of the sidebar and at the bottom of the icon rail, with What's
   new, Trash, Sync and Help.
 
+### Changed
+- **Smoother Android transitions.** Material motion on Android: a quick fade between the sections of the bar, and a short
+  slide with a fade into and out of a screen, on Material's emphasized curve. Predictive back on Android 14 and later: during
+  the back gesture the screen shrinks and the previous one shows behind it. iOS keeps its full-width slide.
+- The Android release build works with R8 (WorkManager's database is kept), and ships the libraries' startup profiles.
+  Measured on a Samsung SM-S948B, release build against debug: janky frames 9.3 % → 4.5 %, 99th percentile 46 ms → 14 ms.
+
 ### Fixed
 - Android no longer starts on a black screen that turns light in the light theme: the window follows the system's
   light or dark mode, and the theme chosen in the app is remembered outside the database so the first frame uses it.

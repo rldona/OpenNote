@@ -50,3 +50,6 @@ expect object QuickPrefs {
     fun get(key: String): String?
     fun set(key: String, value: String?)
 }
+
+/** iOS: the back swipe drags the screen with the finger; Android: predictive back with Material motion. */
+expect val backFollowsFinger: Boolean

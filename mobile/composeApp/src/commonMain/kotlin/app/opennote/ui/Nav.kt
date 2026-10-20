@@ -94,6 +94,8 @@ class Navigator {
     val stack = mutableStateListOf<Screen>(Screen.Home)
     /** True for the last change that went back, so the transition slides the right way. */
     val wentBack = mutableStateOf(false)
+    /** True when the last change switched sections (the bar): a fade rather than a slide. */
+    val wentToRoot = mutableStateOf(false)
     /** Set when an interactive back gesture already moved the screen, so the change is not animated again. */
     val skipAnimation = mutableStateOf(false)
 
@@ -102,18 +104,21 @@ class Navigator {
 
     fun push(s: Screen) {
         wentBack.value = false
+        wentToRoot.value = false
         if (s is Screen.Note && top is Screen.Note) stack[stack.lastIndex] = s else stack.add(s)
     }
 
     fun back(): Boolean {
         if (!canGoBack) return false
         wentBack.value = true
+        wentToRoot.value = false
         stack.removeAt(stack.lastIndex)
         return true
     }
 
     fun root(s: Screen) {
         wentBack.value = false
+        wentToRoot.value = true
         stack.clear()
         stack.add(s)
     }

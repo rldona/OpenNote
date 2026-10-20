@@ -5,7 +5,12 @@ import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -96,6 +101,9 @@ import app.opennote.ui.screens.TasksScreen
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlin.random.Random
+
+/** Material 3's emphasized decelerate curve, for screens coming in. */
+private val EmphasizedDecelerate = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
 
 /** Everything screens share: the data, the back stack, messages, the layout class and the person's choices. */
 class AppEnv(
@@ -212,7 +220,8 @@ fun App() {
                         pending?.let { id -> nav.push(Screen.Note(id)); AppCore.openNote.value = null }
                     }
                     if (nav.canGoBack) BackHandlerCompat {
-                        // After an interactive swipe the screen has already moved: no second slide.
+                        // After an interactive swipe the screen has already moved: no second slide (iOS; Android's predictive
+                        // back clears its progress first and lets the transition finish the move).
                         if (BackGesture.progress.value != null) nav.skipAnimation.value = true
                         nav.back()
                     }
@@ -282,15 +291,38 @@ private fun CompactContent(widthDp: Float, modifier: Modifier) {
             if (dragging) PhoneScreen(nav.stack[nav.stack.lastIndex - 1])
             AnimatedContent(
                 targetState = top,
-                modifier = Modifier.fillMaxSize()
-                    .offset { IntOffset(((progress ?: 0f) * widthDp * density).toInt(), 0) }
-                    .then(if (dragging) Modifier.shadow(12.dp) else Modifier),
+                modifier = Modifier.fillMaxSize().then(
+                    when {
+                        !dragging -> Modifier
+                        // iOS: the screen follows the finger all the way.
+                        backFollowsFinger -> Modifier.offset { IntOffset(((progress ?: 0f) * widthDp * density).toInt(), 0) }.shadow(12.dp)
+                        // Android's predictive back: the screen shrinks a little and moves aside, the previous one shows behind.
+                        else -> Modifier.graphicsLayer {
+                            val p = progress ?: 0f
+                            val k = 1f - 0.1f * p
+                            scaleX = k; scaleY = k
+                            translationX = p * 32.dp.toPx()
+                            shape = RoundedCornerShape((28 * p).dp)
+                            clip = true
+                            shadowElevation = 12.dp.toPx() * p
+                        }
+                    },
+                ),
                 transitionSpec = {
                     when {
                         nav.skipAnimation.value -> EnterTransition.None togetherWith ExitTransition.None
-                        nav.wentBack.value -> slideInHorizontally { -it / 3 } togetherWith slideOutHorizontally { it }
-                        else -> slideInHorizontally { it } togetherWith slideOutHorizontally { -it / 3 }
-                    }
+                        backFollowsFinger -> when {
+                            nav.wentBack.value -> slideInHorizontally { -it / 3 } togetherWith slideOutHorizontally { it }
+                            else -> slideInHorizontally { it } togetherWith slideOutHorizontally { -it / 3 }
+                        }
+                        // Android: Material motion. Between sections of the bar, a quick fade; into and out of a screen, the
+                        // shared X axis (a short slide with a fade), on the standard curve.
+                        nav.wentToRoot.value -> fadeIn(tween(150, delayMillis = 40)) togetherWith fadeOut(tween(90))
+                        nav.wentBack.value -> (slideInHorizontally(tween(300, easing = EmphasizedDecelerate)) { -it / 10 } + fadeIn(tween(210, delayMillis = 90)))
+                            .togetherWith(slideOutHorizontally(tween(300, easing = EmphasizedDecelerate)) { it / 10 } + fadeOut(tween(90)))
+                        else -> (slideInHorizontally(tween(300, easing = EmphasizedDecelerate)) { it / 10 } + fadeIn(tween(210, delayMillis = 90)))
+                            .togetherWith(slideOutHorizontally(tween(300, easing = EmphasizedDecelerate)) { -it / 10 } + fadeOut(tween(90)))
+                    }.apply { if (nav.wentBack.value) targetContentZIndex = -1f }
                 },
             ) { screen ->
                 val running = transition.isRunning
