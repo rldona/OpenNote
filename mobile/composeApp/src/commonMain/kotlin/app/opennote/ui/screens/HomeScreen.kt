@@ -73,6 +73,7 @@ import app.opennote.core.NoteStore
 import app.opennote.ui.AccountButton
 import app.opennote.ui.BrandGreen
 import app.opennote.ui.LocalApp
+import app.opennote.ui.LocalBarSpace
 import app.opennote.ui.NoteAction
 import app.opennote.ui.NoteListKind
 import app.opennote.ui.RecorderDialog
@@ -122,7 +123,7 @@ fun HomeScreen() {
     var sketching by remember { mutableStateOf(false) }
     var creatingNotebook by remember { mutableStateOf(false) }
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).statusBarsPadding().padding(bottom = 24.dp)) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).statusBarsPadding().padding(bottom = 24.dp + LocalBarSpace.current)) {
         Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 8.dp, top = ScreenTop).heightIn(min = TopRowHeight), verticalAlignment = Alignment.CenterVertically) {
             AccountButton()
         }

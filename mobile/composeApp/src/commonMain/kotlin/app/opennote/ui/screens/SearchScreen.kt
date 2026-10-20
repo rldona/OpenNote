@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -38,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import app.opennote.core.ListFilter
 import app.opennote.core.NoteSummary
 import app.opennote.ui.LocalApp
+import app.opennote.ui.LocalBarSpace
 import app.opennote.ui.ScreenTop
 import app.opennote.ui.NoteListKind
 import app.opennote.ui.Screen
@@ -96,7 +98,7 @@ fun SearchScreen() {
         val r = results
         if (r == null) {
             if (saved.isNotEmpty()) SectionTitle(s.savedSearches)
-            LazyColumn {
+            LazyColumn(contentPadding = PaddingValues(bottom = LocalBarSpace.current)) {
                 items(saved) { sv ->
                     Column(Modifier.fillMaxWidth().clickable { env.nav.push(Screen.Notes(NoteListKind.Saved(sv.name, sv.query))) }.padding(horizontal = 20.dp, vertical = 12.dp)) {
                         Text(sv.name)
@@ -106,7 +108,7 @@ fun SearchScreen() {
             }
         } else {
             if (r.isEmpty()) Text(s.noResults, Modifier.padding(20.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
-            LazyColumn(Modifier.fillMaxSize()) { items(r, key = { it.id }) { n -> NoteRow(n, selected = (env.nav.top as? Screen.Note)?.id == n.id) } }
+            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = LocalBarSpace.current)) { items(r, key = { it.id }) { n -> NoteRow(n, selected = (env.nav.top as? Screen.Note)?.id == n.id) } }
         }
     }
 }

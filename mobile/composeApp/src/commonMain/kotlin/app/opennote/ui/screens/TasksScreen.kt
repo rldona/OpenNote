@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.opennote.core.NoteStore
 import app.opennote.ui.LocalApp
+import app.opennote.ui.LocalBarSpace
 import app.opennote.ui.Screen
 import app.opennote.ui.ScreenHeader
 import app.opennote.ui.SectionTitle
@@ -64,7 +65,7 @@ fun TasksScreen() {
             FilterChip(done, { done = true }, { Text(s.done) })
         }
         if (tasks.isEmpty()) Text(s.noTasks, Modifier.padding(24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp + LocalBarSpace.current)) {
             for ((label, items) in groups) {
                 if (label.isNotEmpty()) item { SectionTitle("$label · ${items.size}") }
                 items(items, key = { "${it.noteId}:${it.idx}" }) { task ->

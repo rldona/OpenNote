@@ -74,6 +74,7 @@ import app.opennote.core.ListFilter
 import app.opennote.core.NoteInput
 import app.opennote.core.NoteSummary
 import app.opennote.ui.LocalApp
+import app.opennote.ui.LocalBarSpace
 import app.opennote.ui.NoteListKind
 import app.opennote.ui.Screen
 import app.opennote.ui.ScreenHeader
@@ -162,7 +163,7 @@ fun NotesScreen(kind: NoteListKind) {
             if (shown != null && shown.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(s.noNotes, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
-            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 96.dp)) {
+            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 96.dp + LocalBarSpace.current)) {
                 items(shown ?: emptyList(), key = { it.id }) { n ->
                     NoteRow(n, selected = n.id == selected, trash = kind == NoteListKind.Trash, image = images[n.id])
                 }
@@ -171,7 +172,7 @@ fun NotesScreen(kind: NoteListKind) {
     }
     if (canCreate) FloatingActionButton(
         onClick = { env.newNote((kind as? NoteListKind.Notebook)?.id, (kind as? NoteListKind.Tag)?.name) },
-        Modifier.align(Alignment.BottomEnd).padding(16.dp), shape = CircleShape, containerColor = BrandGreen, contentColor = Color.White,
+        Modifier.align(Alignment.BottomEnd).padding(16.dp).padding(bottom = LocalBarSpace.current), shape = CircleShape, containerColor = BrandGreen, contentColor = Color.White,
     ) { Icon(Icons.AutoMirrored.Outlined.NoteAdd, s.newNote) }
     }
 

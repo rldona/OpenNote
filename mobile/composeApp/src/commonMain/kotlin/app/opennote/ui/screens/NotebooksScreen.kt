@@ -45,6 +45,7 @@ import app.opennote.core.Notebook
 import app.opennote.ui.BrandGreen
 import app.opennote.ui.ListCaption
 import app.opennote.ui.LocalApp
+import app.opennote.ui.LocalBarSpace
 import app.opennote.ui.NoteListKind
 import app.opennote.ui.Screen
 import app.opennote.ui.ScreenHeader
@@ -72,7 +73,7 @@ fun NotebooksScreen() {
             ListCaption(s.notebooksCount(list.size))
             // Stacks first, then loose notebooks, as in the web sidebar.
             val groups = list.groupBy { it.stack ?: "" }.toList().sortedWith(compareBy({ it.first.isEmpty() }, { it.first.lowercase() }))
-            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 96.dp)) {
+            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 96.dp + LocalBarSpace.current)) {
                 for ((stack, books) in groups) {
                     if (stack.isNotEmpty()) item(key = "stack:$stack") {
                         Text(stack.uppercase(), Modifier.padding(start = 20.dp, top = 16.dp, bottom = 4.dp), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -95,7 +96,7 @@ fun NotebooksScreen() {
             }
         }
         FloatingActionButton(
-            onClick = { creating = true }, Modifier.align(Alignment.BottomEnd).padding(16.dp),
+            onClick = { creating = true }, Modifier.align(Alignment.BottomEnd).padding(16.dp).padding(bottom = LocalBarSpace.current),
             containerColor = BrandGreen, contentColor = Color.White, shape = androidx.compose.foundation.shape.CircleShape,
         ) { Icon(Icons.AutoMirrored.Outlined.NoteAdd, s.newNotebook) }
     }
@@ -123,7 +124,7 @@ fun TagsScreen() {
         val list = tags ?: return@Column
         ListCaption(s.tagsCount(list.size))
         if (list.isEmpty()) Text(s.noTags, Modifier.padding(24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp + LocalBarSpace.current)) {
             items(list, key = { it.name }) { t ->
                 val depth = t.name.count { it == '/' }
                 Row(

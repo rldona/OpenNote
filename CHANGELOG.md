@@ -22,6 +22,8 @@ when a `v*` tag is pushed; the section of the tag becomes the release notes.
   pictures and files to a note; photos are scaled to 2560 px.
 - Note lists show the first picture of each note, the date and a count over the list; a green button creates a note there.
 - A **Notebooks** screen and a **Tags** screen of their own, and a default notebook for new notes (Settings › Notebooks).
+- The bottom bar and the search button float over the screen, with the content scrolling behind them; lists and the
+  new-note buttons leave room for them at the end.
 - Settings is a list of pages: Appearance, Navigation, Notebooks, Sync and About, with the version at the bottom.
 - Android phones lose the green header with the logo: screens start under the status bar in the app's colours, with the
   account button at the top left, as on iOS; the status bar icons follow the app's theme.

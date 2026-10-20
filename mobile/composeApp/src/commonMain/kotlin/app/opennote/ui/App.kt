@@ -22,6 +22,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -341,11 +343,20 @@ private fun CompactContent(widthDp: Float, modifier: Modifier) {
  */
 @Composable
 private fun PhoneScreen(screen: Screen) {
-    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        ScreenContent(screen, Modifier.weight(1f).fillMaxWidth())
-        if (screen !is Screen.Note && screen != Screen.Settings && screen !is Screen.SettingsSection) BottomBar()
+    val withBar = screen !is Screen.Note && screen != Screen.Settings && screen !is Screen.SettingsSection
+    // The bar floats over the screen; the screen leaves that much room at the end of its lists (LocalBarSpace).
+    val space = if (withBar) BAR_HEIGHT + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() else 0.dp
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        CompositionLocalProvider(LocalBarSpace provides space) { ScreenContent(screen, Modifier.fillMaxSize()) }
+        if (withBar) Box(Modifier.align(Alignment.BottomCenter)) { BottomBar() }
     }
 }
+
+/** The floating bar's height without the system navigation area: 64 dp pill plus its margins. */
+private val BAR_HEIGHT = 78.dp
+
+/** Room the floating bottom bar takes at the bottom of a phone screen (0 elsewhere): lists end and buttons sit above it. */
+val LocalBarSpace = staticCompositionLocalOf { 0.dp }
 
 fun Section.icon(): ImageVector = when (this) {
     Section.HOME -> Icons.Outlined.AddCircleOutline

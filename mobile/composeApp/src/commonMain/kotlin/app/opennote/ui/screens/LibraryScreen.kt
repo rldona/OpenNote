@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.opennote.core.Notebook
 import app.opennote.ui.LocalApp
+import app.opennote.ui.LocalBarSpace
 import app.opennote.ui.NoteListKind
 import app.opennote.ui.Screen
 import app.opennote.ui.ScreenHeader
@@ -70,7 +71,7 @@ fun LibraryScreen() {
 
     Column(Modifier.fillMaxSize()) {
         ScreenHeader(s.more)
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp + LocalBarSpace.current)) {
             item {
                 Entry(Icons.Filled.List, s.allNotes) { open(NoteListKind.All) }
                 Entry(Icons.Filled.Star, s.pinned) { open(NoteListKind.Pinned) }
