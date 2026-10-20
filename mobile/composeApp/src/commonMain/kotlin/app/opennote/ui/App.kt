@@ -219,6 +219,7 @@ fun App() {
                     LaunchedEffect(pending) {
                         pending?.let { id -> nav.push(Screen.Note(id)); AppCore.openNote.value = null }
                     }
+                    nav.start = if (wide) Screen.Home else sections.first().screen
                     if (nav.canGoBack) BackHandlerCompat {
                         // After an interactive swipe the screen has already moved: no second slide (iOS; Android's predictive
                         // back clears its progress first and lets the transition finish the move).
@@ -288,7 +289,7 @@ private fun CompactContent(widthDp: Float, modifier: Modifier) {
             val dragging = progress != null && nav.canGoBack
             // Interactive back: the previous screen underneath, the current one following the finger. The current screen
             // keeps its place in the tree, so the editor's WebView under the finger is not re-created (that cancels the touch).
-            if (dragging) PhoneScreen(nav.stack[nav.stack.lastIndex - 1])
+            nav.previous?.let { if (dragging) PhoneScreen(it) }
             AnimatedContent(
                 targetState = top,
                 modifier = Modifier.fillMaxSize().then(

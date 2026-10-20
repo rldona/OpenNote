@@ -43,6 +43,8 @@ when a `v*` tag is pushed; the section of the tag becomes the release notes.
   Measured on a Samsung SM-S948B, release build against debug: janky frames 9.3 % → 4.5 %, 99th percentile 46 ms → 14 ms.
 
 ### Fixed
+- Back from another section of the bar (Notes, Notebooks…) returns to the first one (Create) instead of leaving the
+  app; only from there does back leave it.
 - Android no longer starts on a black screen that turns light in the light theme: the window follows the system's
   light or dark mode, and the theme chosen in the app is remembered outside the database so the first frame uses it.
 - Recordings and other attachments are served with byte ranges inside the mobile editor, which audio players need.

@@ -99,8 +99,17 @@ class Navigator {
     /** Set when an interactive back gesture already moved the screen, so the change is not animated again. */
     val skipAnimation = mutableStateOf(false)
 
+    /**
+     * The section the app starts on (the first one in the bar). Back from another section of the bar returns here, and only
+     * from here does back leave the app, as in other Android apps.
+     */
+    var start: Screen = Screen.Home
+
     val top: Screen get() = stack.last()
-    val canGoBack: Boolean get() = stack.size > 1
+    val canGoBack: Boolean get() = stack.size > 1 || stack.first() != start
+
+    /** What back would show: the screen underneath, or the start section. */
+    val previous: Screen? get() = if (stack.size > 1) stack[stack.lastIndex - 1] else start.takeIf { stack.first() != it }
 
     fun push(s: Screen) {
         wentBack.value = false
@@ -112,7 +121,7 @@ class Navigator {
         if (!canGoBack) return false
         wentBack.value = true
         wentToRoot.value = false
-        stack.removeAt(stack.lastIndex)
+        if (stack.size > 1) stack.removeAt(stack.lastIndex) else stack[0] = start
         return true
     }
 
