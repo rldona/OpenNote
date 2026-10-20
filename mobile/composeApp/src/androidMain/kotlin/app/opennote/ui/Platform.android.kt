@@ -20,4 +20,13 @@ object AndroidPlatform {
 actual fun appDataDir(): String = AndroidPlatform.context.filesDir.absolutePath
 actual fun deviceLanguage(): String = Locale.getDefault().language
 actual fun deviceModelName(): String = Build.MODEL ?: "Android"
-actual val showsBrandHeader: Boolean = true
+@androidx.compose.runtime.Composable
+actual fun StatusBarIcons(dark: Boolean) {
+    val view = androidx.compose.ui.platform.LocalView.current
+    androidx.compose.runtime.SideEffect {
+        val window = (activity?.get() ?: return@SideEffect).window
+        androidx.core.view.WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !dark
+    }
+}
+
+private val activity get() = AndroidPlatform.activity

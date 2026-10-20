@@ -38,5 +38,6 @@ expect fun scheduleReminders(alerts: List<ReminderAlert>)
 /** Asks the system to call [AppCore.backgroundSync] now and then while the app is not open. */
 expect fun scheduleBackgroundSync()
 
-/** Android phones show a green header with the app's name under the status bar; iOS does not (BrandHeader in App.kt). */
-expect val showsBrandHeader: Boolean
+/** Dark or light status bar icons, to match the app's theme rather than the system's (Android; iOS follows by itself). */
+@androidx.compose.runtime.Composable
+expect fun StatusBarIcons(dark: Boolean)

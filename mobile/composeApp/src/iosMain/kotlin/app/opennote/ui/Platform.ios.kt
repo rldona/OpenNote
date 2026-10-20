@@ -19,4 +19,5 @@ actual fun appDataDir(): String {
 // The user's preferred language, not currentLocale: that one only offers the localizations the bundle declares.
 actual fun deviceLanguage(): String = (NSLocale.preferredLanguages.firstOrNull() as? String)?.substringBefore('-') ?: "en"
 actual fun deviceModelName(): String = UIDevice.currentDevice.name
-actual val showsBrandHeader: Boolean = false
+@androidx.compose.runtime.Composable
+actual fun StatusBarIcons(dark: Boolean) {}

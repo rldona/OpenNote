@@ -28,8 +28,8 @@ class MainActivity : ComponentActivity() {
     private val askPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { permissionAnswer?.complete(it) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        // White status bar icons: the app's header (AppHeader) is green under them in both themes.
-        enableEdgeToEdge(statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT))
+        // The screens draw under the status bar; its icons follow the app's theme (StatusBarIcons).
+        enableEdgeToEdge(statusBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT))
         super.onCreate(savedInstanceState)
         AndroidPlatform.activity = WeakReference(this)
         AndroidPlatform.requestNotifications = {

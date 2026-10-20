@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -27,7 +26,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.shape.CircleShape
@@ -216,9 +214,8 @@ fun App() {
                     }
                     if (wide) WideLayout() else CompactLayout(maxWidth.value)
                     // The app is drawn edge to edge: lists scrolling up would show through the status bar without this.
-                    if (wide || !showsBrandHeader) {
-                        Box(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars).background(MaterialTheme.colorScheme.background))
-                    }
+                    Box(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars).background(MaterialTheme.colorScheme.background))
+                    StatusBarIcons(dark = isDarkTheme(theme))
                 }
             }
         }
@@ -245,29 +242,7 @@ fun ScreenContent(screen: Screen, modifier: Modifier = Modifier) {
 
 /** Phones: one screen at a time, a bottom bar, and (iOS) the previous screen under the finger while swiping back. */
 @Composable
-private fun CompactLayout(widthDp: Float) {
-    Column(Modifier.fillMaxSize()) {
-        if (showsBrandHeader) BrandHeader()
-        // Under the header the status bar is already taken care of: screens add no room for it, only a little air.
-        CompactContent(
-            widthDp,
-            Modifier.weight(1f).then(if (showsBrandHeader) Modifier.consumeWindowInsets(WindowInsets.statusBars).padding(top = 4.dp) else Modifier),
-        )
-    }
-}
-
-/** Green band under the status bar with the logo and the app's name (Android phones). */
-@Composable
-private fun BrandHeader() {
-    Row(
-        Modifier.fillMaxWidth().background(BrandGreen).statusBarsPadding().height(48.dp).padding(horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        AppLogo(Modifier.size(26.dp))
-        Spacer(Modifier.width(10.dp))
-        Text("OpenNote", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-    }
-}
+private fun CompactLayout(widthDp: Float) = CompactContent(widthDp, Modifier.fillMaxSize())
 
 /** The app icon (mobile/scripts/make-icons.mjs) in small: a white tile with the three green bars. */
 @Composable
