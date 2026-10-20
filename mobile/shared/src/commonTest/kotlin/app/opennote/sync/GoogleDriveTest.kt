@@ -125,6 +125,11 @@ class GoogleDriveTest {
             val form = req.body.toByteArray().decodeToString().parseUrlEncodedParameters().let { p -> p.names().associateWith { p[it]!! } }
             requests += form + ("_url" to req.url.toString())
             when {
+                req.url.encodedPath.endsWith("/drive/v3/about") ->
+                    if (req.headers["Authorization"]?.startsWith("Bearer a") == true) respond(
+                        """{"user":{"displayName":"Ada Lovelace","emailAddress":"ada@example.com","photoLink":"https://lh3.googleusercontent.com/a/ada"}}""",
+                        HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"),
+                    ) else respond("{}", HttpStatusCode.Unauthorized)
                 req.url.encodedPath.endsWith("/revoke") -> respond("", HttpStatusCode.OK)
                 form["grant_type"] == "authorization_code" ->
                     respond("""{"access_token":"a1","expires_in":3600,"refresh_token":"r1"}""", HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
@@ -154,6 +159,9 @@ class GoogleDriveTest {
         assertEquals(pending.verifier, exchange["code_verifier"])
         assertTrue(auth.connected)
         assertEquals("a1", auth.getToken(false)) // cached
+        val who = auth.fetchProfile()
+        assertEquals(GoogleProfile("Ada Lovelace", "ada@example.com", "https://lh3.googleusercontent.com/a/ada"), who)
+        assertEquals(who, GoogleProfile.fromJson(who!!.toJson()))
         clock += 3_600_000
         assertNotEquals("a1", auth.getToken(false)) // expired: renewed from the refresh token
         g.refreshValid = false

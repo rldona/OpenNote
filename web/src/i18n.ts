@@ -1,4 +1,5 @@
 const en = {
+  account: 'Account', thisDevice: 'This device', localOnly: 'Notes are stored on this device only', whatsNew: "What's new", help: 'Help',
   newNote: 'New note', search: 'Search…  (tag:x notebook:y todo:true)', allNotes: 'All notes', pinned: 'Pinned',
   reminders: 'Reminders', notebooks: 'Notebooks', tags: 'Tags', trash: 'Trash', savedSearches: 'Saved searches',
   untitled: 'Untitled', noNotes: 'No notes here', selectNote: 'Select or create a note', title: 'Title',
@@ -28,6 +29,7 @@ const en = {
   notebooksIntro: 'Every notebook with its notes. Open one to see what is inside.', updatedOn: 'Updated {date}', emptyNotebook: 'Empty', pinnedNotes: 'Pinned notes', shortcuts: 'Tip: press / or Ctrl/⌘+K to search, Ctrl/⌘+N for a new note',
 };
 const es: typeof en = {
+  account: 'Cuenta', thisDevice: 'Este dispositivo', localOnly: 'Las notas se guardan solo en este dispositivo', whatsNew: 'Novedades', help: 'Ayuda',
   newNote: 'Nueva nota', search: 'Buscar…  (tag:x notebook:y todo:true)', allNotes: 'Todas las notas', pinned: 'Fijadas',
   reminders: 'Recordatorios', notebooks: 'Cuadernos', tags: 'Etiquetas', trash: 'Papelera', savedSearches: 'Búsquedas guardadas',
   untitled: 'Sin título', noNotes: 'No hay notas', selectNote: 'Selecciona o crea una nota', title: 'Título',

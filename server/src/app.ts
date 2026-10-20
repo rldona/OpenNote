@@ -233,7 +233,7 @@ export function createApp(store: NoteStore, sync?: SyncEngine, clipOptions?: Cli
   // --------------------------------------------------------------------- sync
   app.get('/api/sync/config', (c) => (sync ? c.json(sync.getConfig()) : c.json({ error: 'sync is not available' }, 404)));
   const google = options.google;
-  const googleInfo = () => (google ? { configured: google.configured(), connected: google.connected(), ...google.state() } : null);
+  const googleInfo = () => (google ? { configured: google.configured(), connected: google.connected(), ...google.state(), profile: google.profile() } : null);
   app.get('/api/sync/google', (c) => (google ? c.json(googleInfo()) : c.json({ error: 'not available' }, 404)));
   app.post('/api/sync/google/connect', async (c) => (google ? c.json(await google.begin()) : c.json({ error: 'not available' }, 404)));
   app.post('/api/sync/google/disconnect', async (c) => {

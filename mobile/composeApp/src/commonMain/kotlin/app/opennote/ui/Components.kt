@@ -114,13 +114,11 @@ fun AccountButton() {
     val uri = LocalUriHandler.current
     val connected by AppCore.connected.collectAsState()
     val status by env.repo.syncStatus.collectAsState()
+    val profile by AppCore.profile.collectAsState()
     var open by remember { mutableStateOf(false) }
     Box {
-        Box(
-            Modifier.padding(4.dp).size(40.dp).clip(CircleShape).background(c.primaryContainer).clickable { open = true },
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(Icons.Filled.Person, s.account, tint = c.primary)
+        Box(Modifier.padding(4.dp).size(40.dp).clickable(onClickLabel = s.account) { open = true }) {
+            Avatar(40.dp)
             // A dot when the last sync went wrong.
             if (status?.ok == false) Box(Modifier.align(Alignment.TopEnd).size(10.dp).clip(CircleShape).background(c.error))
         }
@@ -129,11 +127,17 @@ fun AccountButton() {
                 Modifier.widthIn(min = 260.dp).clickable { open = false; env.nav.push(Screen.SettingsSection(SettingsPage.SYNC)) }.padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Box(Modifier.size(40.dp).clip(CircleShape).background(c.primaryContainer), contentAlignment = Alignment.Center) {
+                val p = profile
+                if (connected && p != null) Avatar(40.dp)
+                else Box(Modifier.size(40.dp).clip(CircleShape).background(c.primaryContainer), contentAlignment = Alignment.Center) {
                     Icon(if (connected) Icons.Outlined.CloudDone else Icons.Outlined.PhoneAndroid, null, tint = c.primary)
                 }
                 Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                    Text(if (connected) s.googleDrive else s.deviceName, fontWeight = FontWeight.SemiBold, color = c.onSurface)
+                    Text(
+                        when { connected && p != null -> p.name.ifEmpty { p.email }; connected -> s.googleDrive; else -> s.deviceName },
+                        fontWeight = FontWeight.SemiBold, color = c.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    )
+                    if (connected && p != null && p.name.isNotEmpty()) Text(p.email, fontSize = 13.sp, color = c.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     val st = status
                     Text(
                         when {
@@ -152,6 +156,24 @@ fun AccountButton() {
             DropdownMenuItem(text = { Text(s.trash) }, leadingIcon = { Icon(Icons.Outlined.Delete, null) }, onClick = { open = false; env.nav.push(Screen.Notes(NoteListKind.Trash)) })
             DropdownMenuItem(text = { Text(s.settings) }, leadingIcon = { Icon(Icons.Outlined.Settings, null) }, onClick = { open = false; env.nav.push(Screen.Settings) })
             DropdownMenuItem(text = { Text(s.help) }, leadingIcon = { Icon(Icons.AutoMirrored.Outlined.HelpOutline, null) }, onClick = { open = false; runCatching { uri.openUri(HELP_URL) } })
+        }
+    }
+}
+
+/** The Google account's picture, its initial, or a generic person when sync is not connected. */
+@Composable
+fun Avatar(size: androidx.compose.ui.unit.Dp) {
+    val c = MaterialTheme.colorScheme
+    val connected by AppCore.connected.collectAsState()
+    val profile by AppCore.profile.collectAsState()
+    val photo by AppCore.photo.collectAsState()
+    val img = photo
+    val p = profile
+    Box(Modifier.size(size).clip(CircleShape).background(c.primaryContainer), contentAlignment = Alignment.Center) {
+        when {
+            connected && img != null -> androidx.compose.foundation.Image(img, strings.account, Modifier.size(size), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+            connected && p != null -> Text((p.name.ifEmpty { p.email }).take(1).uppercase(), color = c.primary, fontWeight = FontWeight.Bold, fontSize = (size.value * 0.45f).sp)
+            else -> Icon(Icons.Filled.Person, strings.account, tint = c.primary)
         }
     }
 }

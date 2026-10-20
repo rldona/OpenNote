@@ -12,7 +12,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import type { GoogleConnection } from './google-connection.js';
+import { ABOUT_URL, parseAbout, type GoogleConnection, type GoogleProfile } from './google-connection.js';
 import type { NoteStore } from './store.js';
 import { SyncError } from './sync.js';
 
@@ -21,6 +21,9 @@ const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const REVOKE_URL = 'https://oauth2.googleapis.com/revoke';
 const SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
 const REFRESH_KEY = 'sync.google.refresh';
+const PROFILE_KEY = 'sync.google.profile';
+/** The account's name and picture are looked up again after this long, in case they changed. */
+const PROFILE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const SIGN_IN_TIMEOUT_MS = 5 * 60 * 1000;
 
 export interface GoogleClient {
@@ -49,6 +52,39 @@ export class GoogleAuth implements GoogleConnection {
 
   connected(): boolean {
     return !!this.store.getMeta(REFRESH_KEY);
+  }
+
+  profile(): GoogleProfile | null {
+    if (!this.connected()) return null;
+    try {
+      const p = JSON.parse(this.store.getMeta(PROFILE_KEY) ?? 'null') as (GoogleProfile & { at?: number }) | null;
+      return p ? { name: p.name, email: p.email, photo: p.photo } : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private profileLookup: Promise<void> | null = null;
+
+  /** Looks up who is signed in when it is not known yet or is a day old. Never fails: it is only for display. */
+  private refreshProfile(token: string, force = false): Promise<void> {
+    let at = 0;
+    try {
+      at = (JSON.parse(this.store.getMeta(PROFILE_KEY) ?? 'null') as { at?: number } | null)?.at ?? 0;
+    } catch {
+      /* unreadable: look it up again */
+    }
+    if (!force && Date.now() - at < PROFILE_MAX_AGE_MS) return Promise.resolve();
+    this.profileLookup ??= this.doFetch(ABOUT_URL, { headers: { Authorization: `Bearer ${token}` } })
+      .then(async (res) => {
+        const p = res.ok ? parseAbout(await res.json()) : null;
+        if (p && this.connected()) this.store.setMeta(PROFILE_KEY, JSON.stringify({ ...p, at: Date.now() }));
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        this.profileLookup = null;
+      });
+    return this.profileLookup;
   }
 
   state(): { state: 'idle' | 'waiting' | 'error'; error?: string } {
@@ -102,6 +138,7 @@ export class GoogleAuth implements GoogleConnection {
           this.store.setMeta(REFRESH_KEY, t.refresh_token);
           this.access = { token: t.access_token, expiresAt: Date.now() + (t.expires_in - 60) * 1000 };
           this.finish();
+          void this.refreshProfile(t.access_token, true);
         },
         (e: Error) => this.finish(e.message),
       );
@@ -150,6 +187,7 @@ export class GoogleAuth implements GoogleConnection {
     try {
       const t = await this.tokenRequest({ grant_type: 'refresh_token', refresh_token: refresh });
       this.access = { token: t.access_token, expiresAt: Date.now() + (t.expires_in - 60) * 1000 };
+      void this.refreshProfile(t.access_token);
       return t.access_token;
     } catch (err) {
       if (err instanceof SyncError && err.message === 'invalid_grant') {
@@ -166,6 +204,7 @@ export class GoogleAuth implements GoogleConnection {
     const refresh = this.store.getMeta(REFRESH_KEY);
     this.cancel();
     this.store.setMeta(REFRESH_KEY, null);
+    this.store.setMeta(PROFILE_KEY, null);
     this.access = null;
     this.lastError = undefined;
     if (refresh) {

@@ -28,6 +28,13 @@ when a `v*` tag is pushed; the section of the tag becomes the release notes.
 - The note's toolbar is a floating pill: insert (sketch, scan, table, divider), camera, recorder, files, checklist, lists,
   indent and outdent, then text formatting.
 
+### Added (every app)
+- **Your Google account on the account button.** Once Google Drive sync is connected, the round account button shows the
+  account's picture (or its initial), and its menu shows the name and email. It comes from Drive's own `about` call, allowed
+  with the `drive.appdata` permission OpenNote already has: no new permission, and nobody needs to connect again. The web
+  and desktop apps gain the account button too, at the top of the sidebar and at the bottom of the icon rail, with What's
+  new, Trash, Sync and Help.
+
 ### Fixed
 - Recordings and other attachments are served with byte ranges inside the mobile editor, which audio players need.
 - Pictures and recordings inserted into a note go after the selected item instead of replacing it.

@@ -143,6 +143,19 @@ button.with-icon { display: inline-flex; align-items: center; justify-content: c
 .sidebar-top { display: flex; align-items: center; justify-content: space-between; padding: 0 4px 10px 6px; }
 .brand { display: flex; align-items: center; gap: 9px; background: none; border: 0; padding: 2px; font-weight: 700; font-size: 16px; letter-spacing: -.01em; }
 .brand img { border-radius: 7px; }
+.sidebar-top-actions { display: flex; align-items: center; gap: 2px; }
+.avatar { border-radius: 50%; object-fit: cover; flex: none; display: inline-grid; place-items: center; }
+.avatar-plain { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+.account-btn { background: none; border: 0; padding: 2px; border-radius: 50%; display: inline-grid; }
+.account-btn:hover .avatar { box-shadow: 0 0 0 2px var(--accent-soft); }
+.popover-panel.account-panel { min-width: 270px; }
+.account.up .popover-panel { top: auto; bottom: calc(100% + 6px); }
+.rail .account-btn { margin-top: 4px; }
+.popover-panel > .account-head { padding: 8px 10px; gap: 12px; }
+.account-who { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.account-who strong, .account-who small { overflow: hidden; text-overflow: ellipsis; }
+.account-who small { color: var(--muted); white-space: normal; }
+.account-panel hr { border: 0; border-top: 1px solid var(--border); margin: 4px 0; width: 100%; }
 .new-row { display: flex; gap: 6px; padding: 0 4px 10px; }
 .new-note { flex: 1; padding: 8px 14px; box-shadow: 0 1px 2px color-mix(in oklab, var(--accent) 40%, transparent); }
 .new-row { position: relative; }

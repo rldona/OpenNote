@@ -67,6 +67,11 @@ let loading: Promise<void> | null = null;
 
 export const driveConfigured = () => CLIENT_ID !== '';
 
+/** Connected before names and pictures were kept: look the account up with the token already at hand. */
+export function ensureProfile(): void {
+  if (isConnected() && cached && cached.expiresAt > Date.now()) void rememberAccount(cached.token);
+}
+
 export function isConnected(): boolean {
   try {
     return localStorage.getItem(FLAG) === '1';
@@ -101,13 +106,41 @@ export function preloadGoogle(): Promise<void> {
   return loading;
 }
 
-/** Learns which Google account this is (Drive's own "about" call, allowed with the same scope) to use as a hint next time. */
-async function rememberAccount(token: string): Promise<void> {
-  if (loadHint()) return;
+const PROFILE_KEY = 'opennote.gdrive.profile';
+const PROFILE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+export interface DriveProfile { name: string; email: string; photo: string | null }
+
+/** Who is signed in (name, email, picture), once known. */
+export function getProfile(): DriveProfile | null {
+  if (!isConnected()) return null;
   try {
-    const res = await fetch('https://www.googleapis.com/drive/v3/about?fields=user(emailAddress)', { headers: { Authorization: `Bearer ${token}` } });
-    const email = ((await res.json()) as { user?: { emailAddress?: string } }).user?.emailAddress;
-    if (res.ok && email) saveHint(email);
+    const p = JSON.parse(localStorage.getItem(PROFILE_KEY) ?? 'null') as (DriveProfile & { at?: number }) | null;
+    return p && typeof p.email === 'string' ? { name: p.name ?? '', email: p.email, photo: p.photo ?? null } : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Learns which Google account this is, with Drive's own "about" call (allowed with the same scope): the email is the hint
+ * for the next sign-in, the name and picture show on the account button. Looked up again once a day.
+ */
+async function rememberAccount(token: string): Promise<void> {
+  try {
+    const old = JSON.parse(localStorage.getItem(PROFILE_KEY) ?? 'null') as { at?: number } | null;
+    if (old?.at && Date.now() - old.at < PROFILE_MAX_AGE_MS && loadHint()) return;
+  } catch {
+    /* look it up */
+  }
+  try {
+    const res = await fetch('https://www.googleapis.com/drive/v3/about?fields=user(displayName,emailAddress,photoLink)', { headers: { Authorization: `Bearer ${token}` } });
+    const u = ((await res.json()) as { user?: { displayName?: string; emailAddress?: string; photoLink?: string } }).user;
+    if (!res.ok || !u?.emailAddress) return;
+    saveHint(u.emailAddress);
+    const photo = u.photoLink && /^https:\/\//.test(u.photoLink) ? u.photoLink : null;
+    localStorage.setItem(PROFILE_KEY, JSON.stringify({ name: u.displayName ?? '', email: u.emailAddress, photo, at: Date.now() }));
+    window.dispatchEvent(new Event('opennote:drive-profile'));
   } catch {
     /* only a convenience */
   }
@@ -191,6 +224,12 @@ export function disconnect(): void {
   cached = null;
   saveToken(null);
   saveHint(null);
+  try {
+    localStorage.removeItem(PROFILE_KEY);
+  } catch {
+    /* ignore */
+  }
   remember(false);
+  window.dispatchEvent(new Event('opennote:drive-profile'));
   if (token) gis()?.accounts.oauth2.revoke(token);
 }

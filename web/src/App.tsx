@@ -4,6 +4,7 @@ import { AttachmentsPanel } from './Attachments';
 import { Home } from './Home';
 import { NoteEditor } from './Editor';
 import { SyncPanel } from './SyncPanel';
+import { AccountButton } from './Account';
 import { LockedNote } from './Locked';
 import { Icon, type IconName } from './Icon';
 import { parseHash, toHash, type View } from './route';
@@ -581,9 +582,12 @@ export function App() {
             <img src={`${import.meta.env.BASE_URL}icons/icon-192.png`} alt="" width="26" height="26" />
             <span>OpenNote</span>
           </button>
-          <button className="icon-btn" title={drawer ? t('close') : t('hideSidebar')} aria-label={drawer ? t('close') : t('hideSidebar')} onClick={hideSidebar}>
-            <Icon name={drawer ? 'close' : 'sidebar'} />
-          </button>
+          <span className="sidebar-top-actions">
+            <AccountButton onSync={() => setShowSync(true)} onTrash={() => { setView({ kind: 'trash' }); setDrawerOpen(false); }} />
+            <button className="icon-btn" title={drawer ? t('close') : t('hideSidebar')} aria-label={drawer ? t('close') : t('hideSidebar')} onClick={hideSidebar}>
+              <Icon name={drawer ? 'close' : 'sidebar'} />
+            </button>
+          </span>
         </div>
         <div className="new-row">
           <button className="primary new-note with-icon" onClick={() => void createNote()}><Icon name="plus" size={16} />{t('newNote')}</button>
@@ -716,7 +720,7 @@ export function App() {
           {railItem({ kind: 'notebooks' }, t('notebooks'), 'notebook')}
           <span className="rail-gap" />
           {railItem({ kind: 'trash' }, t('trash'), 'trash')}
-          <button className="icon-btn" title={t('sync')} aria-label={t('sync')} onClick={() => setShowSync(true)}><Icon name="sync" /></button>
+          <AccountButton up onSync={() => setShowSync(true)} onTrash={() => setView({ kind: 'trash' })} />
         </nav>
       )}
       <section className="list-pane">

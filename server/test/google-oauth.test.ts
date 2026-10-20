@@ -23,6 +23,11 @@ function fakeGoogle() {
   let challenge = '';
   const state = { refreshOk: true, noRefreshToken: false };
   const fetchImpl = (async (url: string, init: RequestInit) => {
+    if (url.startsWith('https://www.googleapis.com/drive/v3/about')) {
+      const auth = (init.headers as Record<string, string>).Authorization;
+      if (!/^Bearer access-/.test(auth ?? '')) return Response.json({ error: 'unauthorized' }, { status: 401 });
+      return Response.json({ user: { displayName: 'Ada Lovelace', emailAddress: 'ada@example.com', photoLink: 'https://lh3.googleusercontent.com/a/ada' } });
+    }
     const form = Object.fromEntries(new URLSearchParams(init.body as URLSearchParams));
     log.push({ url, form });
     if (url.endsWith('/revoke')) return new Response('{}');
@@ -77,6 +82,9 @@ describe('Google sign-in for the desktop app (loopback + PKCE)', () => {
     expect(m.map.get('sync.google.refresh')).toBe('refresh-1');
     expect(auth.state()).toEqual({ state: 'idle' });
     expect(await auth.getToken(false)).toBe('access-1'); // the token from the sign-in is reused
+    // Who signed in, from Drive's about call (same scope), for the account button.
+    await until(() => auth.profile() !== null);
+    expect(auth.profile()).toEqual({ name: 'Ada Lovelace', email: 'ada@example.com', photo: 'https://lh3.googleusercontent.com/a/ada' });
     // the loopback listener is gone once the sign-in is done
     await expect(fetch(u.searchParams.get('redirect_uri')!)).rejects.toThrow();
   });
@@ -131,8 +139,11 @@ describe('Google sign-in for the desktop app (loopback + PKCE)', () => {
     const g = fakeGoogle();
     const m = meta();
     m.setMeta('sync.google.refresh', 'refresh-1');
+    m.setMeta('sync.google.profile', JSON.stringify({ name: 'Ada', email: 'ada@example.com', photo: null, at: Date.now() }));
     const auth = new GoogleAuth(m, CLIENT, g.fetchImpl);
+    expect(auth.profile()?.email).toBe('ada@example.com');
     await auth.disconnect();
+    expect(m.map.has('sync.google.profile')).toBe(false);
     expect(g.log.some((c) => c.url.endsWith('/revoke') && c.form.token === 'refresh-1')).toBe(true);
     expect(auth.connected()).toBe(false);
     const none = new GoogleAuth(meta(), {}, g.fetchImpl);
@@ -175,6 +186,7 @@ describe('Google routes of the local API', () => {
       state: () => ({ state: 'idle' as const }),
       begin: async () => (calls.push('begin'), { url: 'https://accounts.google.com/x' }),
       disconnect: async () => void calls.push('disconnect'),
+      profile: () => null,
       ...over,
     };
     const store = new NoteStore(openTestDb(), new Map() as never);
@@ -185,7 +197,7 @@ describe('Google routes of the local API', () => {
 
   it('reports status, starts the sign-in and disconnects', async () => {
     const { app, calls } = fake();
-    expect(await (await call(app, 'GET', '/api/sync/google')).json()).toEqual({ configured: true, connected: false, state: 'idle' });
+    expect(await (await call(app, 'GET', '/api/sync/google')).json()).toEqual({ configured: true, connected: false, state: 'idle', profile: null });
     expect(await (await call(app, 'POST', '/api/sync/google/connect', 'http://localhost')).json()).toEqual({ url: 'https://accounts.google.com/x' });
     await call(app, 'POST', '/api/sync/google/disconnect', 'http://localhost');
     expect(calls).toEqual(['begin', 'disconnect']);

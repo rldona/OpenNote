@@ -41,6 +41,7 @@ const paths = {
   clip: 'M19 11.5l-7 7a4.5 4.5 0 0 1-6.4-6.4l8-8a3 3 0 0 1 4.2 4.2l-8 8a1.5 1.5 0 0 1-2.1-2.1l7-7',
   calendar: 'M5.5 5.5h13a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1v-13a1 1 0 0 1 1-1zM4.5 10h15M8.5 3.5v4M15.5 3.5v4',
   check: 'M5 12.5l4.5 4.5L19 7.5',
+  user: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4.5 20c.6-3.4 3.7-5.5 7.5-5.5s6.9 2.1 7.5 5.5',
 } as const;
 
 export type IconName = keyof typeof paths;

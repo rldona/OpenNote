@@ -3,7 +3,12 @@ package app.opennote.ui
 import app.opennote.core.Html
 import app.opennote.core.ListFilter
 import app.opennote.core.NoteInput
+import androidx.compose.ui.graphics.ImageBitmap
 import app.opennote.sync.GoogleAuth
+import app.opennote.sync.GoogleProfile
+import io.ktor.client.request.get
+import io.ktor.client.statement.readRawBytes
+import kotlin.io.encoding.Base64
 import app.opennote.sync.GoogleDriveTransport
 import app.opennote.sync.SyncStatus
 import io.ktor.client.HttpClient
@@ -36,6 +41,10 @@ object AppCore {
     /** Google Drive is connected (changes on connect and disconnect). */
     val connected = MutableStateFlow(false)
 
+    /** The Google account sync uses, and its picture, once known (kept in the meta table, not synced). */
+    val profile = MutableStateFlow<GoogleProfile?>(null)
+    val photo = MutableStateFlow<ImageBitmap?>(null)
+
     /** A note to show, from a tapped notification or something shared to the app. */
     val openNote = MutableStateFlow<String?>(null)
 
@@ -44,6 +53,7 @@ object AppCore {
             opened = it
             connected.value = auth?.connected == true
             watch(it)
+            loadProfile(it)
         }
     }
 
@@ -67,12 +77,16 @@ object AppCore {
         a.complete(pending, redirect)
         connected.value = true
         scheduleBackgroundSync()
+        scope.launch { refreshProfile(repo(), force = true) }
         return true
     }
 
     suspend fun disconnectGoogle() {
         auth?.disconnect()
         connected.value = false
+        profile.value = null
+        photo.value = null
+        repo().write { setMeta(PROFILE_KEY, null); setMeta(PHOTO_KEY, null) }
     }
 
     fun onForeground() { scope.launch { syncIfReady() } }
@@ -123,6 +137,39 @@ object AppCore {
     }
 
     private val URL = Regex("^https?://\\S+$")
+
+    private const val PROFILE_KEY = "ui.google.profile"
+    private const val PHOTO_KEY = "ui.google.photo"
+    private const val PROFILE_AT_KEY = "ui.google.profileAt"
+
+    /** What was learnt before, at once; then a fresh look once a day (name and picture can change). */
+    private fun loadProfile(r: Repo) {
+        scope.launch {
+            if (auth?.connected != true) return@launch
+            profile.value = GoogleProfile.fromJson(r.read { getMeta(PROFILE_KEY) })
+            r.read { getMeta(PHOTO_KEY) }?.let { b64 -> photo.value = runCatching { decodeImage(Base64.decode(b64), 160) }.getOrNull() }
+            refreshProfile(r)
+        }
+    }
+
+    private suspend fun refreshProfile(r: Repo, force: Boolean = false) {
+        val a = auth ?: return
+        val at = r.read { getMeta(PROFILE_AT_KEY) }?.toLongOrNull() ?: 0
+        if (!force && profile.value != null && nowMs() - at < 24 * 3600_000L) return
+        val p = a.fetchProfile() ?: return
+        // Google's picture address takes the size at the end ("=s64"): ask for one that stays sharp on the phone.
+        val bytes = p.photo?.let { url ->
+            runCatching { http.get(url.replace(Regex("=s\\d+(-c)?$"), "") + "=s160-c").readRawBytes() }.getOrNull()
+        }
+        // Read-only calls: the screens do not need to reload for this.
+        r.read {
+            setMeta(PROFILE_KEY, p.toJson())
+            setMeta(PROFILE_AT_KEY, nowMs().toString())
+            setMeta(PHOTO_KEY, bytes?.let { Base64.encode(it) })
+        }
+        profile.value = p
+        photo.value = bytes?.let { runCatching { decodeImage(it, 160) }.getOrNull() }
+    }
 
     /** iOS keeps at most 64 pending notifications per app. */
     private const val MAX_ALERTS = 60

@@ -3,6 +3,8 @@ package app.opennote.sync
 import dev.whyoleg.cryptography.random.CryptographyRandom
 import io.ktor.client.HttpClient
 import io.ktor.client.request.forms.submitForm
+import io.ktor.client.request.get
+import io.ktor.client.request.header
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.Parameters
 import io.ktor.http.Url
@@ -96,6 +98,20 @@ class GoogleAuth(
         }
     }
 
+    /**
+     * Who is signed in, from Drive's `about` call (allowed with the `drive.appdata` scope, so no other permission is asked
+     * for): name, email and picture for the account button. Null when it cannot be learnt now.
+     */
+    suspend fun fetchProfile(): GoogleProfile? = try {
+        val token = getToken(false)
+        val res = http.get(ABOUT_URL) { header("Authorization", "Bearer $token") }
+        if (!res.status.isSuccess()) null else parseProfile(res.bodyAsText())
+    } catch (e: SyncError) {
+        null
+    } catch (e: Exception) {
+        null
+    }
+
     suspend fun disconnect() {
         val refresh = secrets.get(REFRESH_KEY)
         secrets.set(REFRESH_KEY, null)
@@ -128,5 +144,28 @@ class GoogleAuth(
         const val REVOKE_URL = "https://oauth2.googleapis.com/revoke"
         const val SCOPE = "https://www.googleapis.com/auth/drive.appdata"
         const val REFRESH_KEY = "sync.google.refresh"
+        const val ABOUT_URL = "https://www.googleapis.com/drive/v3/about?fields=user(displayName,emailAddress,photoLink)"
     }
 }
+
+/** The Google account behind the connection. */
+data class GoogleProfile(val name: String, val email: String, val photo: String?) {
+    fun toJson(): String = JsonObject(
+        mapOf("name" to JsonPrimitive(name), "email" to JsonPrimitive(email), "photo" to (photo?.let(::JsonPrimitive) ?: kotlinx.serialization.json.JsonNull)),
+    ).toString()
+
+    companion object {
+        fun fromJson(text: String?): GoogleProfile? = runCatching {
+            val o = parseJson(text ?: return null).jsonObject
+            GoogleProfile((o["name"] as JsonPrimitive).content, (o["email"] as JsonPrimitive).content, (o["photo"] as? JsonPrimitive)?.takeIf { it.isString }?.content)
+        }.getOrNull()
+    }
+}
+
+/** Reads Drive's `about?fields=user(...)` answer. */
+fun parseProfile(text: String): GoogleProfile? = runCatching {
+    val u = parseJson(text).jsonObject["user"]!!.jsonObject
+    val email = (u["emailAddress"] as JsonPrimitive).content
+    val photo = (u["photoLink"] as? JsonPrimitive)?.content?.takeIf { it.startsWith("https://") }
+    GoogleProfile((u["displayName"] as? JsonPrimitive)?.content ?: "", email, photo)
+}.getOrNull()
