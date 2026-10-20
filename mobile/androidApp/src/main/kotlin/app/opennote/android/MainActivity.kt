@@ -15,6 +15,8 @@ import app.opennote.ui.AndroidPlatform
 import app.opennote.ui.AndroidSignIn
 import app.opennote.ui.App
 import app.opennote.ui.AppCore
+import app.opennote.ui.QuickPrefs
+import android.graphics.drawable.ColorDrawable
 import app.opennote.ui.EXTRA_NOTE_ID
 import app.opennote.ui.SharedFile
 import app.opennote.ui.warmUpEditor
@@ -42,6 +44,11 @@ class MainActivity : ComponentActivity() {
             permissionAnswer = answer
             runOnUiThread { askPermission.launch(permission) }
             answer.await()
+        }
+        // The window theme follows the system; when the app's own theme says otherwise, start in its colours.
+        when (QuickPrefs.get("ui.theme")) {
+            "LIGHT" -> window.setBackgroundDrawable(ColorDrawable(android.graphics.Color.WHITE))
+            "DARK" -> window.setBackgroundDrawable(ColorDrawable(0xFF151918.toInt()))
         }
         warmUpEditor(this)
         setContent { App() }

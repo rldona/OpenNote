@@ -30,3 +30,9 @@ actual fun StatusBarIcons(dark: Boolean) {
 }
 
 private val activity get() = AndroidPlatform.activity
+
+actual object QuickPrefs {
+    private val prefs get() = AndroidPlatform.context.getSharedPreferences("opennote.ui", Context.MODE_PRIVATE)
+    actual fun get(key: String): String? = prefs.getString(key, null)
+    actual fun set(key: String, value: String?) { prefs.edit().apply { if (value == null) remove(key) else putString(key, value) }.apply() }
+}

@@ -36,6 +36,8 @@ when a `v*` tag is pushed; the section of the tag becomes the release notes.
   new, Trash, Sync and Help.
 
 ### Fixed
+- Android no longer starts on a black screen that turns light in the light theme: the window follows the system's
+  light or dark mode, and the theme chosen in the app is remembered outside the database so the first frame uses it.
 - Recordings and other attachments are served with byte ranges inside the mobile editor, which audio players need.
 - Pictures and recordings inserted into a note go after the selected item instead of replacing it.
 

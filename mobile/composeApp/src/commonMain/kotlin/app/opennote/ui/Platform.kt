@@ -41,3 +41,12 @@ expect fun scheduleBackgroundSync()
 /** Dark or light status bar icons, to match the app's theme rather than the system's (Android; iOS follows by itself). */
 @androidx.compose.runtime.Composable
 expect fun StatusBarIcons(dark: Boolean)
+
+/**
+ * A few small settings read before the database is open (the theme, so the first frame already has the right colours):
+ * SharedPreferences on Android, NSUserDefaults on iOS. The database stays the reference.
+ */
+expect object QuickPrefs {
+    fun get(key: String): String?
+    fun set(key: String, value: String?)
+}

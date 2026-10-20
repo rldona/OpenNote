@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The window behind the app before its first frame: the light theme's background (values-night: the dark one), so
+     starting does not flash black and then white. MainActivity corrects it when the app's own theme differs. -->
+<resources>
+    <style name="Theme.OpenNote" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@android:color/white</item>
+    </style>
+</resources>

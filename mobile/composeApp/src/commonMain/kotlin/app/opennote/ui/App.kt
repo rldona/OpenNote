@@ -44,7 +44,6 @@ import androidx.compose.material.icons.automirrored.outlined.Label
 import androidx.compose.material.icons.outlined.NotificationsNone
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.StarOutline
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FloatingActionButton
@@ -166,18 +165,22 @@ fun App() {
         EditorFiles.attachment = { id -> runCatching { opened.blocking { getAttachmentData(id) to getAttachment(id).mime } }.getOrNull() }
         repo = opened
     }
+    // The last theme chosen, known before the database opens: no frame in the other theme's colours at start.
+    var theme by remember { mutableStateOf(ThemeMode.entries.firstOrNull { it.name == QuickPrefs.get("ui.theme") } ?: ThemeMode.SYSTEM) }
+    var accent by remember { mutableStateOf(Accent.entries.firstOrNull { it.name == QuickPrefs.get("ui.accent") } ?: Accent.GREEN) }
     val r = repo
     if (r == null) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+        OpenNoteTheme(theme, accent) {
+            Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {}
+            StatusBarIcons(dark = isDarkTheme(theme))
+        }
         return
     }
-    var theme by remember { mutableStateOf(ThemeMode.SYSTEM) }
-    var accent by remember { mutableStateOf(Accent.GREEN) }
     var sections by remember { mutableStateOf(Section.DEFAULT) }
     var defaultNotebook by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(r) {
-        r.read { getMeta("ui.theme") }?.let { v -> ThemeMode.entries.firstOrNull { it.name == v }?.let { theme = it } }
-        r.read { getMeta("ui.accent") }?.let { v -> Accent.entries.firstOrNull { it.name == v }?.let { accent = it } }
+        r.read { getMeta("ui.theme") }?.let { v -> ThemeMode.entries.firstOrNull { it.name == v }?.let { theme = it; QuickPrefs.set("ui.theme", it.name) } }
+        r.read { getMeta("ui.accent") }?.let { v -> Accent.entries.firstOrNull { it.name == v }?.let { accent = it; QuickPrefs.set("ui.accent", it.name) } }
         sections = Section.parse(r.read { getMeta("ui.nav") })
         defaultNotebook = r.read { getMeta("ui.defaultNotebook") }
     }
@@ -193,6 +196,7 @@ fun App() {
                         r, nav, snackbar, scope, wide, theme, accent,
                         setAppearance = { t, a ->
                             theme = t; accent = a
+                            QuickPrefs.set("ui.theme", t.name); QuickPrefs.set("ui.accent", a.name)
                             scope.launch { r.write { setMeta("ui.theme", t.name); setMeta("ui.accent", a.name) } }
                         },
                         sections = sections,

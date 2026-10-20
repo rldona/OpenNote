@@ -21,3 +21,11 @@ actual fun deviceLanguage(): String = (NSLocale.preferredLanguages.firstOrNull()
 actual fun deviceModelName(): String = UIDevice.currentDevice.name
 @androidx.compose.runtime.Composable
 actual fun StatusBarIcons(dark: Boolean) {}
+
+actual object QuickPrefs {
+    private val defaults get() = platform.Foundation.NSUserDefaults.standardUserDefaults
+    actual fun get(key: String): String? = defaults.stringForKey("opennote.$key")
+    actual fun set(key: String, value: String?) {
+        if (value == null) defaults.removeObjectForKey("opennote.$key") else defaults.setObject(value, "opennote.$key")
+    }
+}

@@ -20,7 +20,7 @@
         android:name=".OpenNoteApplication"
         android:label="OpenNote"
         android:icon="@mipmap/ic_launcher"
-        android:theme="@android:style/Theme.Material.NoActionBar"
+        android:theme="@style/Theme.OpenNote"
         android:enableOnBackInvokedCallback="true">
         <activity
             android:name=".MainActivity"
