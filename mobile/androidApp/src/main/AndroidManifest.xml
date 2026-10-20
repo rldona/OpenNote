@@ -7,6 +7,14 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Voice notes. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Photos are taken by the system camera app, which needs no permission here. -->
+    <queries>
+        <intent>
+            <action android:name="android.media.action.IMAGE_CAPTURE" />
+        </intent>
+    </queries>
 
     <application
         android:name=".OpenNoteApplication"
@@ -51,6 +59,15 @@
                 <data android:scheme="app.opennote" android:path="/oauth2redirect" />
             </intent-filter>
         </activity>
+
+        <!-- The camera app writes new photos into the app's cache through this provider. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
+        </provider>
 
         <receiver android:name="app.opennote.ui.ReminderReceiver" android:exported="false" />
         <receiver android:name="app.opennote.ui.RescheduleReceiver" android:exported="false">

@@ -86,6 +86,9 @@ function reportState() {
   send({ type: 'state', state: s });
 }
 
+/** Inserted things go after whatever is selected (a picture just added, say) instead of replacing it. */
+const afterSelection = (ed: Editor) => ed.chain().focus().setTextSelection(ed.state.selection.to);
+
 /** Everything the native formatting bar can ask for. */
 const COMMANDS: Record<string, (ed: Editor, arg?: string) => void> = {
   bold: (ed) => ed.chain().focus().toggleBold().run(),
@@ -101,6 +104,9 @@ const COMMANDS: Record<string, (ed: Editor, arg?: string) => void> = {
   bulletList: (ed) => ed.chain().focus().toggleBulletList().run(),
   orderedList: (ed) => ed.chain().focus().toggleOrderedList().run(),
   taskList: (ed) => ed.chain().focus().toggleTaskList().run(),
+  /** Nest or un-nest the current list item (checklist items too). */
+  indent: (ed) => ed.chain().focus().sinkListItem(ed.isActive('taskItem') ? 'taskItem' : 'listItem').run(),
+  outdent: (ed) => ed.chain().focus().liftListItem(ed.isActive('taskItem') ? 'taskItem' : 'listItem').run(),
   /** arg: YYYY-MM-DD, or empty to clear. Only inside a checklist item. */
   due: (ed, arg) => { if (ed.isActive('taskItem')) ed.chain().focus().updateAttributes('taskItem', { due: arg || null }).run(); },
   /** arg: URL, or empty to remove the link. */
@@ -116,12 +122,12 @@ const COMMANDS: Record<string, (ed: Editor, arg?: string) => void> = {
   table: (ed) => ed.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(),
   rule: (ed) => ed.chain().focus().setHorizontalRule().run(),
   /** arg: src (/api/attachments/<id>). */
-  image: (ed, arg) => { if (arg) ed.chain().focus().setImage({ src: arg }).run(); },
-  audio: (ed, arg) => { if (arg) ed.chain().focus().insertContent({ type: 'audio', attrs: { src: arg } }).run(); },
+  image: (ed, arg) => { if (arg) afterSelection(ed).setImage({ src: arg }).run(); },
+  audio: (ed, arg) => { if (arg) afterSelection(ed).insertContent({ type: 'audio', attrs: { src: arg } }).run(); },
   /** arg: JSON {"href","name"}: a file attachment as a link. */
   file: (ed, arg) => {
     const { href, name } = JSON.parse(arg ?? '{}') as { href?: string; name?: string };
-    if (href) ed.chain().focus().insertContent({ type: 'text', text: name || href, marks: [{ type: 'link', attrs: { href } }] }).run();
+    if (href) afterSelection(ed).insertContent({ type: 'text', text: name || href, marks: [{ type: 'link', attrs: { href } }] }).run();
   },
   undo: (ed) => ed.chain().focus().undo().run(),
   redo: (ed) => ed.chain().focus().redo().run(),

@@ -19,10 +19,13 @@ import app.opennote.ui.EXTRA_NOTE_ID
 import app.opennote.ui.SharedFile
 import app.opennote.ui.warmUpEditor
 import java.lang.ref.WeakReference
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private val askNotifications = registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
+    private var permissionAnswer: CompletableDeferred<Boolean>? = null
+    private val askPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { permissionAnswer?.complete(it) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // White status bar icons: the app's header (AppHeader) is green under them in both themes.
@@ -33,6 +36,12 @@ class MainActivity : ComponentActivity() {
             if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
                 runOnUiThread { askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS) }
             }
+        }
+        AndroidPlatform.requestPermission = { permission ->
+            val answer = CompletableDeferred<Boolean>()
+            permissionAnswer = answer
+            runOnUiThread { askPermission.launch(permission) }
+            answer.await()
         }
         warmUpEditor(this)
         setContent { App() }
@@ -69,6 +78,7 @@ class MainActivity : ComponentActivity() {
         if (AndroidPlatform.activity?.get() === this) {
             AndroidPlatform.activity = null
             AndroidPlatform.requestNotifications = null
+            AndroidPlatform.requestPermission = null
         }
         super.onDestroy()
     }

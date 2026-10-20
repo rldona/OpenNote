@@ -6,49 +6,54 @@ import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.background
-import androidx.compose.ui.unit.sp
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.windowInsetsTopHeight
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsTopHeight
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.outlined.AddCircleOutline
+import androidx.compose.material.icons.automirrored.outlined.Article
+import androidx.compose.material.icons.outlined.Book
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.automirrored.outlined.Label
+import androidx.compose.material.icons.outlined.NotificationsNone
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
@@ -69,21 +74,33 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import app.opennote.core.NoteInput
 import app.opennote.ui.screens.HomeScreen
 import app.opennote.ui.screens.LibraryScreen
 import app.opennote.ui.screens.NoteScreen
+import app.opennote.ui.screens.NotebooksScreen
 import app.opennote.ui.screens.NotesScreen
 import app.opennote.ui.screens.SearchScreen
+import app.opennote.ui.screens.SettingsSectionScreen
 import app.opennote.ui.screens.SettingsScreen
+import app.opennote.ui.screens.TagsScreen
 import app.opennote.ui.screens.TasksScreen
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import kotlin.random.Random
 
-/** Everything screens share: the data, the back stack, messages, the layout class and the appearance. */
+/** Everything screens share: the data, the back stack, messages, the layout class and the person's choices. */
 class AppEnv(
     val repo: Repo,
     val nav: Navigator,
@@ -93,15 +110,48 @@ class AppEnv(
     val theme: ThemeMode,
     val accent: Accent,
     val setAppearance: (ThemeMode, Accent) -> Unit,
+    /** The sections of the bottom bar, in order. */
+    val sections: List<Section>,
+    val setSections: (List<Section>) -> Unit,
+    /** Where new notes go when the screen does not say (Settings › Notebooks); null: the first notebook. */
+    val defaultNotebook: String?,
+    val setDefaultNotebook: (String?) -> Unit,
 ) {
     fun message(text: String) { scope.launch { snackbar.showSnackbar(text) } }
 
+    private fun notebookFor(notebookId: String?) = notebookId ?: defaultNotebook
+
     /** Creates a note (in [notebookId], or with [tag], when the list on screen shows one) and opens it. */
-    fun newNote(notebookId: String? = null, tag: String? = null, title: String = "") {
+    fun newNote(notebookId: String? = null, tag: String? = null, title: String = "", content: String? = null, action: NoteAction? = null) {
         scope.launch {
-            val n = repo.write { createNote(NoteInput(notebookId = notebookId, title = title, tags = tag?.let { listOf(it) })) }
-            nav.push(Screen.Note(n.id))
+            val n = repo.write {
+                val nb = notebookFor(notebookId)?.takeIf { id -> listNotebooks().any { it.id == id } }
+                createNote(NoteInput(notebookId = nb, title = title, content = content, tags = tag?.let { listOf(it) }))
+            }
+            nav.push(Screen.Note(n.id, action, Random.nextLong()))
         }
+    }
+
+    /** A note that starts with one empty checklist item, the cursor in it. */
+    fun newTask(notebookId: String? = null) = newNote(notebookId, content = EMPTY_TASK, action = NoteAction.TASK)
+
+    /** A new note holding [files] (a photo, a scan, a recording, a sketch…), opened at once. */
+    fun newNoteWith(files: List<SharedFile>, title: String = "", notebookId: String? = null) {
+        if (files.isEmpty()) return
+        scope.launch {
+            val id = repo.write {
+                val nb = notebookFor(notebookId)?.takeIf { id -> listNotebooks().any { it.id == id } }
+                val note = createNote(NoteInput(notebookId = nb, title = title))
+                val html = files.joinToString("") { attachmentHtml(addAttachment(note.id, it.name, it.mime, it.data)) }
+                updateNote(note.id, NoteInput(content = html))
+                note.id
+            }
+            nav.push(Screen.Note(id))
+        }
+    }
+
+    companion object {
+        const val EMPTY_TASK = "<ul data-type=\"taskList\"><li data-type=\"taskItem\" data-checked=\"false\"><p></p></li></ul>"
     }
 }
 
@@ -125,9 +175,13 @@ fun App() {
     }
     var theme by remember { mutableStateOf(ThemeMode.SYSTEM) }
     var accent by remember { mutableStateOf(Accent.GREEN) }
+    var sections by remember { mutableStateOf(Section.DEFAULT) }
+    var defaultNotebook by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(r) {
         r.read { getMeta("ui.theme") }?.let { v -> ThemeMode.entries.firstOrNull { it.name == v }?.let { theme = it } }
         r.read { getMeta("ui.accent") }?.let { v -> Accent.entries.firstOrNull { it.name == v }?.let { accent = it } }
+        sections = Section.parse(r.read { getMeta("ui.nav") })
+        defaultNotebook = r.read { getMeta("ui.defaultNotebook") }
     }
     val scope = rememberCoroutineScope()
     val nav = remember { Navigator() }
@@ -136,11 +190,18 @@ fun App() {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             BoxWithConstraints(Modifier.fillMaxSize()) {
                 val wide = maxWidth >= 600.dp
-                val env = remember(r, wide, theme, accent) {
-                    AppEnv(r, nav, snackbar, scope, wide, theme, accent) { t, a ->
-                        theme = t; accent = a
-                        scope.launch { r.write { setMeta("ui.theme", t.name); setMeta("ui.accent", a.name) } }
-                    }
+                val env = remember(r, wide, theme, accent, sections, defaultNotebook) {
+                    AppEnv(
+                        r, nav, snackbar, scope, wide, theme, accent,
+                        setAppearance = { t, a ->
+                            theme = t; accent = a
+                            scope.launch { r.write { setMeta("ui.theme", t.name); setMeta("ui.accent", a.name) } }
+                        },
+                        sections = sections,
+                        setSections = { list -> sections = list; scope.launch { r.write { setMeta("ui.nav", list.joinToString(",") { it.name }) } } },
+                        defaultNotebook = defaultNotebook,
+                        setDefaultNotebook = { id -> defaultNotebook = id; scope.launch { r.write { setMeta("ui.defaultNotebook", id) } } },
+                    )
                 }
                 CompositionLocalProvider(LocalApp provides env) {
                     // A tapped reminder or something shared to the app.
@@ -170,11 +231,14 @@ fun ScreenContent(screen: Screen, modifier: Modifier = Modifier) {
         when (screen) {
             Screen.Home -> HomeScreen()
             is Screen.Notes -> NotesScreen(screen.kind)
-            is Screen.Note -> NoteScreen(screen.id)
+            is Screen.Note -> NoteScreen(screen)
             Screen.Search -> SearchScreen()
             Screen.Library -> LibraryScreen()
+            Screen.Notebooks -> NotebooksScreen()
+            Screen.Tags -> TagsScreen()
             Screen.Tasks -> TasksScreen()
             Screen.Settings -> SettingsScreen()
+            is Screen.SettingsSection -> SettingsSectionScreen(screen.page)
         }
     }
 }
@@ -259,37 +323,111 @@ private fun CompactContent(widthDp: Float, modifier: Modifier) {
 }
 
 /**
- * A phone screen with the bottom bar under it, except for a note. The bar belongs to the screen rather than the Scaffold, so
- * it slides away with the list when a note opens: if it disappeared at once, the area would grow mid-transition and the
- * incoming note would move vertically too.
+ * A phone screen with the bottom bar under it, except for a note and the settings. The bar belongs to the screen rather than
+ * the Scaffold, so it slides away with the list when a note opens: if it disappeared at once, the area would grow
+ * mid-transition and the incoming note would move vertically too.
  */
 @Composable
 private fun PhoneScreen(screen: Screen) {
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         ScreenContent(screen, Modifier.weight(1f).fillMaxWidth())
-        if (screen !is Screen.Note) BottomBar()
+        if (screen !is Screen.Note && screen != Screen.Settings && screen !is Screen.SettingsSection) BottomBar()
     }
 }
 
+fun Section.icon(): ImageVector = when (this) {
+    Section.HOME -> Icons.Outlined.AddCircleOutline
+    Section.NOTES -> Icons.Outlined.Description
+    Section.NOTEBOOKS -> Icons.Outlined.Book
+    Section.SEARCH -> Icons.Filled.Search
+    Section.PINNED -> Icons.Outlined.StarOutline
+    Section.TASKS -> Icons.Outlined.CheckCircle
+    Section.REMINDERS -> Icons.Outlined.NotificationsNone
+    Section.TAGS -> Icons.AutoMirrored.Outlined.Label
+    Section.TEMPLATES -> Icons.AutoMirrored.Outlined.Article
+}
+
+fun Section.label(): String = when (this) {
+    Section.HOME -> strings.create
+    Section.NOTES -> strings.notes
+    Section.NOTEBOOKS -> strings.notebooks
+    Section.SEARCH -> strings.search
+    Section.PINNED -> strings.shortcuts
+    Section.TASKS -> strings.tasks
+    Section.REMINDERS -> strings.reminders
+    Section.TAGS -> strings.tags
+    Section.TEMPLATES -> strings.templates
+}
+
+/**
+ * A floating pill with the person's sections and More, and a round search button next to it (the 2024 Evernote layout).
+ */
 @Composable
 private fun BottomBar() {
     val env = LocalApp.current
     val nav = env.nav
-    val tab = nav.tab()
+    val current = Section.of(nav.stack.first())
     val s = strings
-    // On the screen's background with a hairline, like the note's format bar: in the cards' colour it merged with them.
-    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-    NavigationBar(containerColor = MaterialTheme.colorScheme.background) {
-        NavigationBarItem(tab == Tab.HOME, { nav.root(Screen.Home) }, { Icon(Icons.Filled.Home, null) }, label = { Text(s.home) })
-        NavigationBarItem(tab == Tab.NOTES, { nav.root(Screen.Notes(NoteListKind.All)) }, { Icon(Icons.Filled.List, null) }, label = { Text(s.notes) })
-        NavigationBarItem(false, { env.newNote() }, {
-            Box(
-                Modifier.background(BrandGreen, RoundedCornerShape(14.dp)).width(52.dp).height(40.dp),
-                contentAlignment = Alignment.Center,
-            ) { Icon(Icons.Filled.Add, s.newNote, tint = Color.White) }
-        })
-        NavigationBarItem(tab == Tab.SEARCH, { nav.root(Screen.Search) }, { Icon(Icons.Filled.Search, null) }, label = { Text(s.search) })
-        NavigationBarItem(tab == Tab.LIBRARY, { nav.root(Screen.Library) }, { Icon(Icons.Filled.Menu, null) }, label = { Text(s.more) })
+    val c = MaterialTheme.colorScheme
+    Row(
+        Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Row(
+            Modifier.weight(1f).height(64.dp).shadow(6.dp, RoundedCornerShape(32.dp)).clip(RoundedCornerShape(32.dp))
+                .background(c.surfaceContainer).border(1.dp, c.outlineVariant, RoundedCornerShape(32.dp)).padding(5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            for (sec in env.sections) {
+                BarItem(sec.icon(), sec.label(), selected = sec == current, Modifier.weight(1f)) { nav.root(sec.screen) }
+            }
+            var more by remember { mutableStateOf(false) }
+            val inMore = current != null && current !in env.sections
+            Box(Modifier.weight(1f)) {
+                BarItem(Icons.Filled.MoreHoriz, s.more, selected = inMore || more, Modifier.fillMaxWidth()) { more = true }
+                MoreMenu(more) { more = false }
+            }
+        }
+        Spacer(Modifier.width(10.dp))
+        Box(
+            Modifier.size(64.dp).shadow(6.dp, CircleShape).clip(CircleShape).background(c.onSurface).clickable { nav.push(Screen.Search) },
+            contentAlignment = Alignment.Center,
+        ) { Icon(Icons.Filled.Search, s.search, tint = c.surface, modifier = Modifier.size(28.dp)) }
+    }
+}
+
+@Composable
+private fun BarItem(icon: ImageVector, label: String, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val c = MaterialTheme.colorScheme
+    Column(
+        modifier.fillMaxHeight().clip(RoundedCornerShape(27.dp)).background(if (selected) c.surfaceContainerHigh else Color.Transparent).clickable(onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
+    ) {
+        Icon(icon, null, Modifier.size(24.dp), tint = if (selected) c.primary else c.onSurface)
+        Text(label, fontSize = 12.sp, maxLines = 1, color = if (selected) c.primary else c.onSurface, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal)
+    }
+}
+
+/** The sections that are not in the bar, and a way to choose which are. */
+@Composable
+private fun MoreMenu(open: Boolean, onClose: () -> Unit) {
+    val env = LocalApp.current
+    val s = strings
+    DropdownMenu(open, onClose, shape = RoundedCornerShape(18.dp)) {
+        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(s.more, Modifier.weight(1f), fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            IconButton(onClick = { onClose(); env.nav.push(Screen.SettingsSection(SettingsPage.NAVIGATION)) }) {
+                Icon(Icons.Outlined.Settings, s.customizeNav, tint = MaterialTheme.colorScheme.primary)
+            }
+        }
+        // Search has its own round button next to the bar.
+        for (sec in Section.entries.filter { it !in env.sections && it != Section.SEARCH }) {
+            DropdownMenuItem(
+                text = { Text(sec.label(), fontSize = 16.sp) },
+                leadingIcon = { Icon(sec.icon(), null) },
+                onClick = { onClose(); env.nav.root(sec.screen) },
+            )
+        }
     }
 }
 
@@ -311,11 +449,12 @@ private fun WideLayout() {
                 FloatingActionButton(onClick = { env.newNote() }, Modifier.padding(top = 16.dp), containerColor = BrandGreen, contentColor = Color.White) { Icon(Icons.Filled.Add, s.newNote) }
             }) {
                 Spacer(Modifier.height(8.dp))
-                NavigationRailItem(tab == Tab.HOME, { nav.root(Screen.Home) }, { Icon(Icons.Filled.Home, null) }, label = { Text(s.home) })
-                NavigationRailItem(tab == Tab.NOTES, { nav.root(Screen.Notes(NoteListKind.All)) }, { Icon(Icons.Filled.List, null) }, label = { Text(s.notes) })
+                NavigationRailItem(tab == Tab.HOME, { nav.root(Screen.Home) }, { Icon(Section.HOME.icon(), null) }, label = { Text(s.create) })
+                NavigationRailItem(tab == Tab.NOTES, { nav.root(Screen.Notes(NoteListKind.All)) }, { Icon(Section.NOTES.icon(), null) }, label = { Text(s.notes) })
+                NavigationRailItem(tab == Tab.NOTEBOOKS, { nav.root(Screen.Notebooks) }, { Icon(Section.NOTEBOOKS.icon(), null) }, label = { Text(s.notebooks) })
                 NavigationRailItem(tab == Tab.SEARCH, { nav.root(Screen.Search) }, { Icon(Icons.Filled.Search, null) }, label = { Text(s.search) })
-                NavigationRailItem(tab == Tab.TASKS, { nav.root(Screen.Tasks) }, { Icon(Icons.Filled.CheckCircle, null) }, label = { Text(s.tasks) })
-                NavigationRailItem(nav.stack.first() == Screen.Library, { nav.root(Screen.Library) }, { Icon(Icons.Filled.Menu, null) }, label = { Text(s.more) })
+                NavigationRailItem(tab == Tab.TASKS, { nav.root(Screen.Tasks) }, { Icon(Section.TASKS.icon(), null) }, label = { Text(s.tasks) })
+                NavigationRailItem(nav.stack.first() == Screen.Library, { nav.root(Screen.Library) }, { Icon(Icons.Filled.MoreHoriz, null) }, label = { Text(s.more) })
                 Spacer(Modifier.weight(1f))
                 NavigationRailItem(nav.stack.first() == Screen.Settings, { nav.root(Screen.Settings) }, { Icon(Icons.Filled.Settings, null) }, label = { Text(s.settings) })
             }

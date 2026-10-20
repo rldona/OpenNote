@@ -41,5 +41,5 @@ The shared tests read the contract fixtures in `server/test/fixtures/sync-v1` an
 ## Status
 
 Phases 1 (core), 2 (interface) and 3 (Keychain/Keystore, Google sign-in, notifications, background sync, Share on Android)
-done, with sign-in and sync checked on an iPad; next are Android on a device, the iOS Share extension and the camera. Details and open points: [docs/MOBILE-SPIKE.md](../docs/MOBILE-SPIKE.md).
+done, with sign-in and sync checked on an iPad; phase 4 brought the 2024 Evernote-style navigation, the Create screen, voice notes, sketches, photos, the iOS document scanner and files. Next are Android on a device and the iOS Share extension. Details and open points: [docs/MOBILE-SPIKE.md](../docs/MOBILE-SPIKE.md).
 CI: `.github/workflows/mobile.yml`.

@@ -28,6 +28,9 @@ targets:
         UIViewControllerBasedStatusBarAppearance: false
         # Background sync (Services.ios.kt): a refresh task now and then while the app is closed.
         UIBackgroundModes: [fetch]
+        # Photos, document scans and voice notes in notes (Media.ios.kt).
+        NSCameraUsageDescription: OpenNote uses the camera to add photos and scanned documents to your notes.
+        NSMicrophoneUsageDescription: OpenNote uses the microphone to record voice notes.
         BGTaskSchedulerPermittedIdentifiers: [app.opennote.sync]
     settings:
       base:

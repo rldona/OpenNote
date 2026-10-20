@@ -1,6 +1,26 @@
 package app.opennote.ui.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.automirrored.filled.Sort
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.automirrored.outlined.NoteAdd
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import app.opennote.ui.BrandGreen
+import app.opennote.ui.ListCaption
+import app.opennote.ui.Thumbnails
+import app.opennote.ui.decodeImage
+import app.opennote.ui.listDate
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -100,17 +120,21 @@ fun NotesScreen(kind: NoteListKind) {
         is NoteListKind.Notebook -> kind.name; is NoteListKind.Tag -> "# ${kind.name}"; is NoteListKind.Saved -> kind.name
     }
     val selected = (env.nav.top as? Screen.Note)?.id
+    val images = load { read { firstImages() } } ?: emptyMap()
+    val root = env.nav.stack.first() == Screen.Notes(kind)
+    val canCreate = kind != NoteListKind.Trash && kind != NoteListKind.Templates
 
+    Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize()) {
-        ScreenHeader(title, shown?.let { s.notesCount(it.size) }, back = env.nav.stack.size > 1 && env.nav.stack.first() !is Screen.Notes) {
+        ScreenHeader(title, back = !root && env.nav.canGoBack, account = root) {
             if (kind == NoteListKind.Trash) {
                 if (!notes.isNullOrEmpty()) TextButton(onClick = { confirmEmpty = true }) { Text(s.emptyTrash) }
-            } else if (kind != NoteListKind.Templates) {
-                IconButton(onClick = { env.newNote((kind as? NoteListKind.Notebook)?.id, (kind as? NoteListKind.Tag)?.name) }) { Icon(Icons.Filled.Add, s.newNote) }
+            } else {
+                IconButton(onClick = { env.nav.push(Screen.Search) }) { Icon(Icons.Filled.Search, s.search) }
             }
             var menu by remember { mutableStateOf(false) }
             Box {
-                IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, s.more) }
+                IconButton(onClick = { menu = true }) { Icon(Icons.AutoMirrored.Filled.Sort, s.sort) }
                 DropdownMenu(menu, { menu = false }) {
                     for ((k, label) in listOf(Sort.UPDATED to s.sortUpdated, Sort.CREATED to s.sortCreated, Sort.TITLE to s.sortTitle)) {
                         DropdownMenuItem(text = { Text((if (sort == k) "✓  " else "     ") + label) }, onClick = { sort = k; menu = false })
@@ -129,6 +153,7 @@ fun NotesScreen(kind: NoteListKind) {
                 }
             }
         }
+        shown?.let { ListCaption(s.notesCount(it.size)) }
         PullToRefreshBox(
             isRefreshing = refreshing,
             onRefresh = { env.scope.launch { refreshing = true; env.repo.sync() ?: env.repo.changed(); refreshing = false } },
@@ -137,12 +162,17 @@ fun NotesScreen(kind: NoteListKind) {
             if (shown != null && shown.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(s.noNotes, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
-            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 96.dp)) {
                 items(shown ?: emptyList(), key = { it.id }) { n ->
-                    NoteRow(n, selected = n.id == selected, trash = kind == NoteListKind.Trash)
+                    NoteRow(n, selected = n.id == selected, trash = kind == NoteListKind.Trash, image = images[n.id])
                 }
             }
         }
+    }
+    if (canCreate) FloatingActionButton(
+        onClick = { env.newNote((kind as? NoteListKind.Notebook)?.id, (kind as? NoteListKind.Tag)?.name) },
+        Modifier.align(Alignment.BottomEnd).padding(16.dp), shape = CircleShape, containerColor = BrandGreen, contentColor = Color.White,
+    ) { Icon(Icons.AutoMirrored.Outlined.NoteAdd, s.newNote) }
     }
 
     if (confirmEmpty) {
@@ -158,7 +188,7 @@ fun NotesScreen(kind: NoteListKind) {
 /** A note in a list. Swipe right to pin or unpin (restore, in the trash), left to move it to the trash (delete, in the trash). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NoteRow(n: NoteSummary, selected: Boolean = false, trash: Boolean = false) {
+fun NoteRow(n: NoteSummary, selected: Boolean = false, trash: Boolean = false, image: String? = null) {
     val env = LocalApp.current
     val s = strings
     val state = rememberSwipeToDismissBoxState()
@@ -189,26 +219,49 @@ fun NoteRow(n: NoteSummary, selected: Boolean = false, trash: Boolean = false) {
             }
         },
     ) {
-        Column(
+        Row(
             Modifier.fillMaxWidth()
                 // Opaque: the swipe actions are drawn underneath.
                 .background(if (selected) MaterialTheme.colorScheme.primaryContainer.compositeOver(MaterialTheme.colorScheme.background) else MaterialTheme.colorScheme.background)
                 .clickable { env.nav.push(Screen.Note(n.id)) }
-                .padding(horizontal = 20.dp, vertical = 12.dp),
+                .padding(horizontal = 20.dp, vertical = 16.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (n.pinned) Icon(Icons.Filled.Star, s.pinned, Modifier.size(14.dp).padding(end = 2.dp), tint = MaterialTheme.colorScheme.primary)
-                Text(n.title.ifEmpty { s.untitled }, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                if (n.reminderAt != null) Icon(Icons.Filled.Notifications, s.reminder, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            if (n.snippet.isNotEmpty()) Text(n.snippet, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(shortDate(n.updatedAt), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                for (t in n.tags.take(3)) {
-                    Text(t, fontSize = 12.sp, modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh, androidx.compose.foundation.shape.RoundedCornerShape(50)).padding(horizontal = 8.dp, vertical = 1.dp))
+            Column(Modifier.weight(1f).heightIn(min = 72.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (n.pinned) Icon(Icons.Filled.Star, s.pinned, Modifier.size(16.dp).padding(end = 3.dp), tint = MaterialTheme.colorScheme.primary)
+                    Text(n.title.ifEmpty { s.untitled }, fontWeight = FontWeight.SemiBold, fontSize = 18.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                    if (n.reminderAt != null) Icon(Icons.Filled.Notifications, s.reminder, Modifier.padding(start = 4.dp).size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                if (n.snippet.isNotEmpty()) Text(n.snippet, Modifier.padding(top = 2.dp), fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.weight(1f, fill = true).heightIn(min = 8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(listDate(n.updatedAt), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    for (t in n.tags.take(3)) {
+                        Text(t, fontSize = 12.sp, maxLines = 1, modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(50)).padding(horizontal = 8.dp, vertical = 1.dp))
+                    }
                 }
             }
+            if (image != null) Thumbnail(image, Modifier.padding(start = 14.dp).size(92.dp))
         }
     }
     HorizontalDivider(Modifier.padding(start = 20.dp), color = MaterialTheme.colorScheme.outlineVariant)
+}
+
+/** The first picture of a note, small, decoded once and kept for the session. */
+@Composable
+fun Thumbnail(attachmentId: String, modifier: Modifier) {
+    val env = LocalApp.current
+    var image by remember(attachmentId) { mutableStateOf(Thumbnails.cached(attachmentId)) }
+    LaunchedEffect(attachmentId) {
+        if (Thumbnails.has(attachmentId)) return@LaunchedEffect
+        val bytes = runCatching { env.repo.read { getAttachmentData(attachmentId) } }.getOrNull()
+        val decoded = bytes?.let { b -> withContext(Dispatchers.Default) { runCatching { decodeImage(b, 256) }.getOrNull() } }
+        Thumbnails.put(attachmentId, decoded)
+        image = decoded
+    }
+    val img = image ?: return
+    Image(
+        img, null, modifier.clip(RoundedCornerShape(10.dp)).border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(10.dp)),
+        contentScale = ContentScale.Crop,
+    )
 }

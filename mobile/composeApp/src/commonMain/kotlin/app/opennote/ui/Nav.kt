@@ -15,18 +15,76 @@ sealed interface NoteListKind {
     data class Saved(val name: String, val query: String) : NoteListKind
 }
 
+/** Settings pages under the settings list. */
+enum class SettingsPage { APPEARANCE, NAVIGATION, NOTEBOOKS, SYNC, ABOUT }
+
+/** Something to do as soon as a note opens (from the Create screen's shortcuts). */
+enum class NoteAction { REMINDER, TASK }
+
 sealed interface Screen {
     data object Home : Screen
     data class Notes(val kind: NoteListKind) : Screen
-    data class Note(val id: String) : Screen
+    /** [nonce] tells apart two openings of the same note with an action, so each action runs once. */
+    data class Note(val id: String, val action: NoteAction? = null, val nonce: Long = 0) : Screen
     data object Search : Screen
     data object Library : Screen
+    data object Notebooks : Screen
+    data object Tags : Screen
     data object Tasks : Screen
     data object Settings : Screen
+    data class SettingsSection(val page: SettingsPage) : Screen
 }
 
-/** The top-level destinations of the bottom bar (phones) and the rail (tablets). */
-enum class Tab { HOME, NOTES, SEARCH, TASKS, LIBRARY }
+/**
+ * The places the bottom bar (phones) can lead to. The person picks which ones it shows (Settings › Navigation); Notes is
+ * always there, the rest live in the More menu.
+ */
+enum class Section(val screen: Screen) {
+    HOME(Screen.Home),
+    NOTES(Screen.Notes(NoteListKind.All)),
+    NOTEBOOKS(Screen.Notebooks),
+    SEARCH(Screen.Search),
+    PINNED(Screen.Notes(NoteListKind.Pinned)),
+    TASKS(Screen.Tasks),
+    REMINDERS(Screen.Notes(NoteListKind.Reminders)),
+    TAGS(Screen.Tags),
+    TEMPLATES(Screen.Notes(NoteListKind.Templates)),
+    ;
+
+    companion object {
+        /** How many sections fit in the bar next to More. */
+        const val IN_BAR = 3
+        val DEFAULT = listOf(HOME, NOTES, NOTEBOOKS)
+
+        fun parse(saved: String?): List<Section> {
+            val picked = saved?.split(',')?.mapNotNull { n -> entries.firstOrNull { it.name == n } }?.distinct().orEmpty()
+            if (picked.isEmpty()) return DEFAULT
+            return (if (NOTES in picked) picked else listOf(NOTES) + picked).take(IN_BAR)
+        }
+
+        /** The section a screen belongs to, for the bar's selection. */
+        fun of(screen: Screen): Section? = when (screen) {
+            Screen.Home -> HOME
+            is Screen.Notes -> when (screen.kind) {
+                NoteListKind.Pinned -> PINNED
+                NoteListKind.Reminders -> REMINDERS
+                NoteListKind.Templates -> TEMPLATES
+                is NoteListKind.Notebook -> NOTEBOOKS
+                is NoteListKind.Tag -> TAGS
+                else -> NOTES
+            }
+            is Screen.Note -> NOTES
+            Screen.Search -> SEARCH
+            Screen.Notebooks -> NOTEBOOKS
+            Screen.Tags -> TAGS
+            Screen.Tasks -> TASKS
+            else -> null
+        }
+    }
+}
+
+/** The top-level destinations of the rail (tablets). */
+enum class Tab { HOME, NOTES, NOTEBOOKS, SEARCH, TASKS, LIBRARY }
 
 /**
  * A simple back stack. Phones show its top; tablets show a note next to the screen it was opened from.
@@ -60,12 +118,18 @@ class Navigator {
         stack.add(s)
     }
 
+    private val doneActions = mutableSetOf<Long>()
+
+    /** The action [s] was opened with, the first time it is asked for; null afterwards. */
+    fun takeAction(s: Screen.Note): NoteAction? = s.action?.takeIf { doneActions.add(s.nonce) }
+
     fun tab(): Tab = when (stack.first()) {
         Screen.Home -> Tab.HOME
         is Screen.Notes, is Screen.Note -> Tab.NOTES
+        Screen.Notebooks -> Tab.NOTEBOOKS
         Screen.Search -> Tab.SEARCH
         Screen.Tasks -> Tab.TASKS
-        Screen.Library, Screen.Settings -> Tab.LIBRARY
+        else -> Tab.LIBRARY
     }
 }
 

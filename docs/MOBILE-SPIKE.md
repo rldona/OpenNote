@@ -9,6 +9,29 @@ Xcode 27.1 (iOS 27 simulators) and an Android 37 emulator; the app also installs
 Versions: Kotlin 2.4.21, Compose Multiplatform 1.12.2, AGP 9.4.1, Gradle 9.6.0, androidx.sqlite (bundled) 2.7.1,
 cryptography-kotlin 0.6.0 (JDK provider on JVM/Android, CryptoKit on iOS), Ksoup 0.2.6, Ktor 3.6.0, kotlinx-datetime 0.8.0.
 
+## Phase 4: the 2024 Evernote layout and capture, done (first part)
+
+- **Navigation** (`Nav.kt`, `App.kt`): a floating bar with three sections chosen by the person (`Section`, stored as
+  `ui.nav` in the meta table; Notes always included) plus More, a pop-up with the other sections; a round search button
+  beside the bar. Settings and a note hide the bar.
+- **Screens**: Create (`HomeScreen.kt`: date, search, New note / New task, capture shortcuts, scratch pad in `ui.scratch`,
+  then tasks due, reminders, shortcuts and recent notes), Notebooks and Tags (`NotebooksScreen.kt`), note lists with the
+  count, thumbnails (`NoteStore.firstImages`, decoded once in `Thumbnails`) and a new-note button, an account menu
+  (`AccountButton`), and settings pages (`SettingsPage`: appearance, navigation, default notebook in `ui.defaultNotebook`,
+  sync, about).
+- **Capture** (`Media.kt` and its `actual`s): `Capture` for the camera (Android: the camera app through a FileProvider,
+  scaled and turned upright; iOS: UIImagePickerController, the photo library in the simulator), the document scanner
+  (VisionKit, iOS only) and the file pickers; `AudioRecorder` (MediaRecorder / AVAudioRecorder, AAC); `SketchDialog`
+  (common Compose, exported with `encodePng`). Each becomes an attachment inserted at the cursor
+  (`EditorController.insert`) or, from Create, a new note (`AppEnv.newNoteWith`).
+- The editor page gained `indent`/`outdent`, and inserts after the selection. Attachments are served with byte ranges on
+  both platforms (audio players need them).
+
+Checked in the iPhone 17 simulator: the Create screen, the bar and More menu, navigation settings (hide and show), the
+account menu, settings, a new task with the cursor in its checklist item, a sketch inserted into a note, and a voice note
+recorded, inserted and showing its length in the player. Android builds; on a device: not yet. Not checked: the camera
+and scanner on a real device (the simulator has neither), Android's camera, file picker and recorder.
+
 ## Phase 3: the platforms, done (with what is left below)
 
 - **Secrets:** `SecretStore` is the Keychain on iOS (generic passwords, readable after the first unlock so background sync
@@ -128,5 +151,5 @@ state drives the native formatting bar, and one WebView is reused between notes.
 ## Next
 
 - **Android on a device:** sign-in with the Android OAuth client, Share, reminders after a restart, background sync.
-- **Phase 4:** iOS Share extension, camera and document scanner, then store builds (signing in CI).
+- **Phase 4, rest:** iOS Share extension, a document scanner on Android, then store builds (signing in CI).
 - Real devices for the open points above.

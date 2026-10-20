@@ -49,3 +49,6 @@ fun isDarkTheme(mode: ThemeMode) = when (mode) { ThemeMode.SYSTEM -> isSystemInD
 
 /** The logo's green (mobile/scripts/make-icons.mjs): the new-note buttons and the Android header, whatever the accent. */
 val BrandGreen = Color(0xFF00A82D)
+
+/** The New task button's violet. */
+val TaskViolet = Color(0xFFA35BE8)

@@ -46,7 +46,18 @@ private object EditorWebView {
                     if (path.startsWith("/api/attachments/")) {
                         // Images and audio inside a note: the same URLs as on the web, served from the app's store.
                         val (bytes, mime) = EditorFiles.attachment?.invoke(path.removePrefix("/api/attachments/")) ?: return WebResourceResponse("text/plain", null, 404, "Not found", null, null)
-                        return WebResourceResponse(mime, null, bytes.inputStream())
+                        // Audio players ask for byte ranges; answer them, or recordings do not play.
+                        val range = request.requestHeaders.entries.firstOrNull { it.key.equals("Range", ignoreCase = true) }?.value
+                        val m = range?.let { Regex("bytes=(\\d*)-(\\d*)").find(it) }
+                        if (m != null && bytes.isNotEmpty()) {
+                            val first = m.groupValues[1].toIntOrNull() ?: 0
+                            val last = (m.groupValues[2].toIntOrNull() ?: (bytes.size - 1)).coerceAtMost(bytes.size - 1)
+                            if (first <= last) {
+                                val headers = mapOf("Content-Range" to "bytes $first-$last/${bytes.size}", "Accept-Ranges" to "bytes", "Content-Length" to "${last - first + 1}")
+                                return WebResourceResponse(mime, null, 206, "Partial Content", headers, bytes.inputStream(first, last - first + 1))
+                            }
+                        }
+                        return WebResourceResponse(mime, null, 200, "OK", mapOf("Accept-Ranges" to "bytes"), bytes.inputStream())
                     }
                     return loader.shouldInterceptRequest(request.url)
                 }

@@ -125,7 +125,7 @@ fun LibraryScreen() {
 }
 
 @Composable
-private fun Entry(icon: ImageVector?, label: String, count: Int? = null, indent: Boolean = false, indentLevel: Int = 0, onLong: (() -> Unit)? = null, onClick: () -> Unit) {
+internal fun Entry(icon: ImageVector?, label: String, count: Int? = null, indent: Boolean = false, indentLevel: Int = 0, onLong: (() -> Unit)? = null, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().clickable(onClick = onClick).padding(start = 20.dp + (if (indent) 16.dp else 0.dp) + (16 * indentLevel).dp, end = 12.dp).padding(vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -139,7 +139,7 @@ private fun Entry(icon: ImageVector?, label: String, count: Int? = null, indent:
 
 /** Create a notebook, or rename one and change its stack. */
 @Composable
-private fun NotebookDialog(nb: Notebook?, onClose: () -> Unit, onDelete: (Notebook) -> Unit) {
+internal fun NotebookDialog(nb: Notebook?, onClose: () -> Unit, onDelete: (Notebook) -> Unit) {
     val env = LocalApp.current
     val s = strings
     var name by remember { mutableStateOf(nb?.name ?: "") }

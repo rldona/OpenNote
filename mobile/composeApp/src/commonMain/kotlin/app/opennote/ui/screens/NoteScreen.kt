@@ -1,6 +1,36 @@
 package app.opennote.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.automirrored.filled.Redo
+import androidx.compose.material.icons.automirrored.filled.Undo
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.FormatBold
+import androidx.compose.material.icons.automirrored.filled.FormatIndentDecrease
+import androidx.compose.material.icons.automirrored.filled.FormatIndentIncrease
+import androidx.compose.material.icons.filled.FormatItalic
+import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
+import androidx.compose.material.icons.filled.FormatListNumbered
+import androidx.compose.material.icons.filled.FormatQuote
+import androidx.compose.material.icons.filled.FormatUnderlined
+import androidx.compose.material.icons.filled.StrikethroughS
+import androidx.compose.material.icons.filled.TextFields
+import androidx.compose.material.icons.outlined.AttachFile
+import androidx.compose.material.icons.outlined.BorderColor
+import androidx.compose.material.icons.outlined.CameraAlt
+import androidx.compose.material.icons.outlined.CheckBox
+import androidx.compose.material.icons.outlined.DocumentScanner
+import androidx.compose.material.icons.outlined.Draw
+import androidx.compose.material.icons.outlined.HorizontalRule
+import androidx.compose.material.icons.outlined.Mic
+import androidx.compose.material.icons.outlined.TableChart
+import app.opennote.ui.NoteAction
+import app.opennote.ui.RecorderBar
+import app.opennote.ui.SketchDialog
+import app.opennote.ui.insert
+import app.opennote.ui.rememberCapture
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -96,25 +126,40 @@ import kotlinx.datetime.toLocalDateTime
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NoteScreen(id: String) {
+fun NoteScreen(screen: Screen.Note) {
+    val id = screen.id
     val env = LocalApp.current
     val s = strings
+    val action = remember(screen) { env.nav.takeAction(screen) }
     // Bumped when the body changes from outside the editor (a restored version), so the editor reloads it.
     var bodyRev by remember(id) { mutableIntStateOf(0) }
     var initial by remember(id) { mutableStateOf<Note?>(null) }
     LaunchedEffect(id, bodyRev) { initial = runCatching { env.repo.read { getNote(id) } }.getOrNull() }
     val note = load(id) { runCatching { read { getNote(id) } }.getOrNull() }
     val notebooks = load { read { listNotebooks() } } ?: emptyList()
+    val controller = remember(id) { EditorController() }
     val start = initial ?: return
     val current = note ?: start
     val trashed = current.summary.trashedAt != null
 
-    val controller = remember(id) { EditorController() }
     var state by remember(id) { mutableStateOf(EditorState()) }
     var title by remember(id, bodyRev) { mutableStateOf(start.title) }
     var saveJob by remember(id) { mutableStateOf<Job?>(null) }
     var showHistory by remember { mutableStateOf(false) }
-    var showReminder by remember { mutableStateOf(false) }
+    var showReminder by remember(id) { mutableStateOf(action == NoteAction.REMINDER) }
+    var recording by remember(id) { mutableStateOf(false) }
+    var sketching by remember(id) { mutableStateOf(false) }
+    val capture = rememberCapture()
+    /** Stores files in the note and puts them in at the cursor. */
+    fun attach(files: List<app.opennote.ui.SharedFile>) {
+        if (files.isEmpty()) return
+        env.scope.launch {
+            for (f in files) {
+                val a = runCatching { env.repo.write { addAttachment(id, f.name, f.mime, f.data) } }.getOrElse { env.message(it.message ?: "$it"); return@launch }
+                controller.insert(a)
+            }
+        }
+    }
     var confirmDelete by remember { mutableStateOf(false) }
     val uri = LocalUriHandler.current
 
@@ -125,6 +170,9 @@ fun NoteScreen(id: String) {
             env.repo.write { updateNote(id, patch) }
         }
     }
+
+    // A new task: the cursor goes into its empty checklist item once the editor has the note.
+    if (action == NoteAction.TASK) LaunchedEffect(id) { delay(450); controller.focus() }
 
     Column(Modifier.fillMaxSize().statusBarsPadding().imePadding()) {
         // ---- header
@@ -183,6 +231,10 @@ fun NoteScreen(id: String) {
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
         )
         TagsRow(current, enabled = !trashed)
+        if (recording) RecorderBar(
+            onDone = { f -> recording = false; attach(listOf(f)) }, onClose = { recording = false },
+            Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+        )
         // ---- body
         NoteBodyEditor(
             noteKey = "$id:$bodyRev",
@@ -204,9 +256,17 @@ fun NoteScreen(id: String) {
             },
             modifier = Modifier.weight(1f).fillMaxWidth(),
         )
-        if (!trashed) FormatBar(state, controller)
+        if (!trashed) FormatBar(
+            state, controller,
+            onCamera = { capture.photo { f -> if (f != null) attach(listOf(f)) } },
+            onMic = { controller.flush(); recording = true },
+            onFiles = { capture.files { attach(it) } },
+            onSketch = { sketching = true },
+            onScan = if (capture.canScan) ({ capture.scan { attach(it) } }) else null,
+        )
     }
 
+    if (sketching) SketchDialog(onDone = { f -> sketching = false; attach(listOf(f)) }, onClose = { sketching = false })
     if (showHistory) HistoryDialog(id, onRestored = { bodyRev++ }) { showHistory = false }
     if (showReminder) ReminderDialog(current) { showReminder = false }
     if (confirmDelete) {
@@ -277,55 +337,82 @@ private fun TagsRow(note: Note, enabled: Boolean) {
     }
 }
 
-/** The native formatting bar, one row that scrolls sideways, right above the keyboard. */
+/**
+ * The native formatting bar right above the keyboard, a pill that scrolls sideways: things to insert first (the camera, a
+ * recording, files, a sketch), then lists and indentation, then text formatting.
+ */
 @Composable
-private fun FormatBar(state: EditorState, controller: EditorController) {
+private fun FormatBar(
+    state: EditorState, controller: EditorController,
+    onCamera: () -> Unit, onMic: () -> Unit, onFiles: () -> Unit, onSketch: () -> Unit, onScan: (() -> Unit)?,
+) {
     val s = strings
-    Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainer).navigationBarsPadding()) {
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 6.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+    val c = MaterialTheme.colorScheme
+    Box(Modifier.fillMaxWidth().background(c.background).navigationBarsPadding().padding(horizontal = 10.dp, vertical = 6.dp)) {
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(c.surfaceContainer)
+                .border(1.dp, c.outlineVariant, RoundedCornerShape(28.dp)).horizontalScroll(rememberScrollState()).padding(horizontal = 6.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            var insertMenu by remember { mutableStateOf(false) }
+            Box {
+                Box(
+                    Modifier.padding(horizontal = 2.dp).size(40.dp).clip(CircleShape).background(c.primary).clickable(onClickLabel = s.insert) { insertMenu = true },
+                    contentAlignment = Alignment.Center,
+                ) { Icon(Icons.Filled.Add, s.insert, tint = c.onPrimary) }
+                DropdownMenu(insertMenu, { insertMenu = false }) {
+                    DropdownMenuItem(text = { Text(s.sketch) }, leadingIcon = { Icon(Icons.Outlined.Draw, null) }, onClick = { insertMenu = false; onSketch() })
+                    if (onScan != null) DropdownMenuItem(text = { Text(s.scan) }, leadingIcon = { Icon(Icons.Outlined.DocumentScanner, null) }, onClick = { insertMenu = false; onScan() })
+                    DropdownMenuItem(text = { Text(s.table) }, leadingIcon = { Icon(Icons.Outlined.TableChart, null) }, onClick = { insertMenu = false; controller.exec("table") })
+                    DropdownMenuItem(text = { Text(s.divider) }, leadingIcon = { Icon(Icons.Outlined.HorizontalRule, null) }, onClick = { insertMenu = false; controller.exec("rule") })
+                }
+            }
+            BarIcon(Icons.Outlined.CameraAlt, s.camera, false, onCamera)
+            BarIcon(Icons.Outlined.Mic, s.recorder, false, onMic)
+            BarIcon(Icons.Outlined.AttachFile, s.files, false, onFiles)
+            BarIcon(Icons.Outlined.CheckBox, s.checklist, state.taskList) { controller.exec("taskList") }
+            Sep()
+            BarIcon(Icons.AutoMirrored.Filled.FormatListBulleted, s.bullets, state.bulletList) { controller.exec("bulletList") }
+            BarIcon(Icons.Filled.FormatListNumbered, s.numbers, state.orderedList) { controller.exec("orderedList") }
+            BarIcon(Icons.AutoMirrored.Filled.FormatIndentDecrease, s.outdent, false) { controller.exec("outdent") }
+            BarIcon(Icons.AutoMirrored.Filled.FormatIndentIncrease, s.indent, false) { controller.exec("indent") }
+            Sep()
             var styleMenu by remember { mutableStateOf(false) }
             Box {
-                BarButton("Aa", s.textStyle, state.heading1 || state.heading2 || state.blockquote || state.codeBlock) { styleMenu = true }
+                BarIcon(Icons.Filled.TextFields, s.textStyle, state.heading1 || state.heading2) { styleMenu = true }
                 DropdownMenu(styleMenu, { styleMenu = false }) {
                     for ((label, cmd, on) in listOf(
                         Triple(s.paragraph, "paragraph", state.paragraph && !state.heading1 && !state.heading2),
                         Triple(s.heading1, "heading1", state.heading1), Triple(s.heading2, "heading2", state.heading2),
-                        Triple(s.quote, "blockquote", state.blockquote), Triple(s.code, "codeBlock", state.codeBlock),
-                        Triple(s.strike, "strike", state.strike), Triple(s.highlight, "highlight", state.highlight),
                     )) DropdownMenuItem(text = { Text((if (on) "✓  " else "     ") + label) }, onClick = { styleMenu = false; controller.exec(cmd) })
                 }
             }
-            BarButton("B", s.bold, state.bold) { controller.exec("bold") }
-            BarButton("I", s.italic, state.italic) { controller.exec("italic") }
-            BarButton("U", s.underline, state.underline) { controller.exec("underline") }
-            BarButton("☑", s.checklist, state.taskList) { controller.exec("taskList") }
-            BarButton("•", s.bullets, state.bulletList) { controller.exec("bulletList") }
-            BarButton("1.", s.numbers, state.orderedList) { controller.exec("orderedList") }
-            var insertMenu by remember { mutableStateOf(false) }
-            Box {
-                BarButton("+", "+", false) { insertMenu = true }
-                DropdownMenu(insertMenu, { insertMenu = false }) {
-                    DropdownMenuItem(text = { Text(s.table) }, onClick = { insertMenu = false; controller.exec("table") })
-                    DropdownMenuItem(text = { Text(s.divider) }, onClick = { insertMenu = false; controller.exec("rule") })
-                }
-            }
-            BarButton("↶", s.undo, false) { controller.exec("undo") }
-            BarButton("↷", s.redo, false) { controller.exec("redo") }
+            BarIcon(Icons.Filled.FormatBold, s.bold, state.bold) { controller.exec("bold") }
+            BarIcon(Icons.Filled.FormatItalic, s.italic, state.italic) { controller.exec("italic") }
+            BarIcon(Icons.Filled.FormatUnderlined, s.underline, state.underline) { controller.exec("underline") }
+            BarIcon(Icons.Filled.StrikethroughS, s.strike, state.strike) { controller.exec("strike") }
+            BarIcon(Icons.Outlined.BorderColor, s.highlight, state.highlight) { controller.exec("highlight") }
+            BarIcon(Icons.Filled.Code, s.code, state.codeBlock) { controller.exec("codeBlock") }
+            BarIcon(Icons.Filled.FormatQuote, s.quote, state.blockquote) { controller.exec("blockquote") }
+            Sep()
+            BarIcon(Icons.AutoMirrored.Filled.Undo, s.undo, false) { controller.exec("undo") }
+            BarIcon(Icons.AutoMirrored.Filled.Redo, s.redo, false) { controller.exec("redo") }
         }
     }
 }
 
 @Composable
-private fun BarButton(label: String, description: String, active: Boolean, onClick: () -> Unit) {
+private fun Sep() = Box(Modifier.padding(horizontal = 4.dp).size(width = 1.dp, height = 24.dp).background(MaterialTheme.colorScheme.outline))
+
+@Composable
+private fun BarIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, description: String, active: Boolean, onClick: () -> Unit) {
+    val c = MaterialTheme.colorScheme
     Box(
-        Modifier.size(width = 46.dp, height = 44.dp).clip(RoundedCornerShape(10.dp))
-            .background(if (active) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
+        Modifier.size(44.dp).clip(RoundedCornerShape(12.dp))
+            .background(if (active) c.primaryContainer else Color.Transparent)
             .clickable(onClickLabel = description, onClick = onClick),
         contentAlignment = Alignment.Center,
-    ) {
-        Text(label, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
-    }
+    ) { Icon(icon, description, tint = if (active) c.primary else c.onSurface) }
 }
 
 @Composable

@@ -5,6 +5,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -14,6 +15,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Icon
@@ -78,10 +80,16 @@ fun SearchScreen() {
     }
 
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
-        OutlinedTextField(
-            q, { q = it }, Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = ScreenTop, bottom = 16.dp).focusRequester(focus),
-            leadingIcon = { Icon(Icons.Filled.Search, null) }, placeholder = { Text(s.searchHint) }, singleLine = true, shape = RoundedCornerShape(14.dp),
-        )
+        val pushed = env.nav.stack.size > 1 && !env.wide
+        Row(Modifier.fillMaxWidth().padding(start = if (pushed) 4.dp else 16.dp, end = 16.dp, top = ScreenTop, bottom = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (pushed) androidx.compose.material3.IconButton(onClick = { env.nav.back() }) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, s.back)
+            }
+            OutlinedTextField(
+                q, { q = it }, Modifier.weight(1f).focusRequester(focus),
+                leadingIcon = { Icon(Icons.Filled.Search, null) }, placeholder = { Text(s.searchHint) }, singleLine = true, shape = RoundedCornerShape(14.dp),
+            )
+        }
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             for (op in completion.ifEmpty { OPERATORS }) AssistChip(onClick = { apply(op, completion.isNotEmpty()) }, label = { Text(op, fontFamily = FontFamily.Monospace, fontSize = 13.sp) })
         }

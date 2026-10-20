@@ -13,6 +13,8 @@ object AndroidPlatform {
     var activity: WeakReference<Activity>? = null
     /** Asks for the notification permission (Android 13+); set by MainActivity. */
     var requestNotifications: (() -> Unit)? = null
+    /** Asks for a runtime permission and answers whether it was granted; set by MainActivity. */
+    var requestPermission: (suspend (String) -> Boolean)? = null
 }
 
 actual fun appDataDir(): String = AndroidPlatform.context.filesDir.absolutePath

@@ -25,6 +25,7 @@ import platform.Foundation.NSData
 import platform.Foundation.NSHTTPURLResponse
 import platform.Foundation.NSURL
 import platform.Foundation.NSURLRequest
+import platform.Foundation.valueForHTTPHeaderField
 import platform.Foundation.create
 import platform.WebKit.WKURLSchemeHandlerProtocol
 import platform.WebKit.WKURLSchemeTaskProtocol
@@ -55,8 +56,23 @@ private class AppScheme : NSObject(), WKURLSchemeHandlerProtocol {
             NSBundle.mainBundle.pathForResource(name.substringBeforeLast('.'), name.substringAfterLast('.'), "editor")
                 ?.let { NSData.create(contentsOfFile = it) }?.let { it.toByteArray() to EditorFiles.mimeOf(name) }
         }
-        val (bytes, mime) = found ?: (ByteArray(0) to "text/plain")
-        val response = NSHTTPURLResponse(uRL = url, statusCode = if (found != null) 200 else 404, HTTPVersion = "HTTP/1.1", headerFields = mapOf<Any?, Any?>("Content-Type" to mime))
+        val (all, mime) = found ?: (ByteArray(0) to "text/plain")
+        // Audio players ask for byte ranges (WebKit plays nothing without them).
+        val range = (startURLSchemeTask.request.valueForHTTPHeaderField("Range"))?.let { Regex("bytes=(\\d*)-(\\d*)").find(it) }
+        var bytes = all
+        var status = if (found != null) 200L else 404L
+        val headers = mutableMapOf<Any?, Any?>("Content-Type" to mime, "Accept-Ranges" to "bytes")
+        if (found != null && range != null && all.isNotEmpty()) {
+            val first = range.groupValues[1].toIntOrNull() ?: 0
+            val last = (range.groupValues[2].toIntOrNull() ?: (all.size - 1)).coerceAtMost(all.size - 1)
+            if (first <= last) {
+                bytes = all.copyOfRange(first, last + 1)
+                status = 206
+                headers["Content-Range"] = "bytes $first-$last/${all.size}"
+            }
+        }
+        headers["Content-Length"] = "${bytes.size}"
+        val response = NSHTTPURLResponse(uRL = url, statusCode = status, HTTPVersion = "HTTP/1.1", headerFields = headers)
         startURLSchemeTask.didReceiveResponse(response)
         startURLSchemeTask.didReceiveData(bytes.toNSData())
         startURLSchemeTask.didFinish()

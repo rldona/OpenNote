@@ -566,6 +566,11 @@ class NoteStore(private val db: Database, private val blobs: BlobStore, private 
     fun listAttachments(noteId: String): List<Attachment> =
         db.all("SELECT * FROM attachments WHERE note_id = ? ORDER BY created_at", noteId).map(::toAttachment)
 
+    /** The first image attached to each note that has one (for thumbnails in lists): note id → attachment id. */
+    fun firstImages(): Map<String, String> =
+        db.all("SELECT note_id, id FROM attachments WHERE mime LIKE 'image/%' ORDER BY created_at DESC")
+            .associate { it["note_id"] as String to it["id"] as String }
+
     fun getAttachment(id: String): Attachment = db.one("SELECT * FROM attachments WHERE id = ?", id)?.let(::toAttachment) ?: throw NotFoundError("attachment not found")
 
     fun getAttachmentData(id: String): ByteArray {

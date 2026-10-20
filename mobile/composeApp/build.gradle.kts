@@ -55,6 +55,7 @@ kotlin {
             api(project(":shared"))
             implementation(libs.compose.backhandler)
             implementation(libs.compose.icons)
+            implementation(libs.compose.icons.extended)
             implementation(libs.kotlinx.datetime)
             implementation(libs.ktor.client.core)
         }
@@ -65,6 +66,7 @@ kotlin {
             implementation(libs.androidx.webkit)
             implementation(libs.androidx.browser)
             implementation(libs.androidx.work)
+            implementation(libs.androidx.activity.compose)
         }
     }
 }

@@ -6,6 +6,30 @@ when a `v*` tag is pushed; the section of the tag becomes the release notes.
 
 ## [Unreleased]
 
+### Added (Android and iOS apps)
+- **New navigation**, after Evernote's 2024 mobile layout: a floating bar with Create, Notes, Notebooks and More, and a round
+  search button beside it. Settings › Navigation chooses which three sections the bar shows (Notes is always there); the rest
+  are in the More menu.
+- **Create screen**: today's date, search, big *New note* and *New task* buttons, shortcuts (notebook, reminder, recorder,
+  camera, document scanner on iPhone and iPad, files, sketch, templates) and a scratch pad that keeps what is typed in it
+  until it becomes a note.
+- **Account menu** (the round button at the top left): this device and its sync state, What's new, Trash, Settings and Help.
+- **Voice notes**: record from the note's toolbar or the Create screen, with pause and a level meter; the recording is an
+  audio attachment that plays in the note (AAC, .m4a), on every device.
+- **Sketches**: a drawing pad with pen, highlighter, eraser, five inks and three widths; the drawing is added to the note as
+  a PNG cut to what was drawn.
+- **Photos, scans and files**: the camera (iOS and Android), the system document scanner (iOS) and the file picker add
+  pictures and files to a note; photos are scaled to 2560 px.
+- Note lists show the first picture of each note, the date and a count over the list; a green button creates a note there.
+- A **Notebooks** screen and a **Tags** screen of their own, and a default notebook for new notes (Settings › Notebooks).
+- Settings is a list of pages: Appearance, Navigation, Notebooks, Sync and About, with the version at the bottom.
+- The note's toolbar is a floating pill: insert (sketch, scan, table, divider), camera, recorder, files, checklist, lists,
+  indent and outdent, then text formatting.
+
+### Fixed
+- Recordings and other attachments are served with byte ranges inside the mobile editor, which audio players need.
+- Pictures and recordings inserted into a note go after the selected item instead of replacing it.
+
 ## [0.5.0] - 2026-10-19
 
 ### Changed
