@@ -16,7 +16,8 @@
     "typecheck": "tsc --noEmit",
     "smoke": "node scripts/smoke.mjs",
     "pack": "npm run bundle && electron-builder --dir",
-    "dist": "npm run bundle && electron-builder"
+    "dist": "npm run bundle && electron-builder",
+    "test": "node --test"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
