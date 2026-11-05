@@ -2,10 +2,12 @@
 //   build/icon.png      full-bleed square, for Windows and Linux (electron-builder makes the .ico from it)
 //   build/icon-mac.png  the artwork at 80% of the canvas with a soft shadow, as macOS expects, so it does not look
 //                       oversized next to other icons in the Dock (electron-builder makes the .icns from it)
+//   build/icons/NxN.png the full-bleed icon at every size the freedesktop hicolor theme declares (16 to 512), for the
+//                       Linux .deb. hicolor has no 1024x1024 directory, so a lone 1024 PNG is installed but never found.
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';
 
-const N = 1024;
+export const HICOLOR_SIZES = [16, 22, 24, 32, 48, 64, 128, 256, 512];
 const bg = [0, 168, 45];
 const fg = [255, 255, 255];
 
@@ -22,10 +24,14 @@ const bars = [
   [410, 696, 103, 41],
 ];
 
-/** scale: size of the artwork relative to the canvas; shadow: draw the macOS-style drop shadow. */
-function render(scale, shadow) {
+/**
+ * N: canvas size in pixels; scale: size of the artwork relative to the canvas; shadow: draw the macOS-style drop shadow.
+ * The geometry is defined on a 1024 grid and drawn analytically at the target size, so every size has the same shape.
+ */
+function render(N, scale, shadow) {
+  const k = N / 1024;
   const half = (N / 2) * scale;
-  const radius = 224 * scale;
+  const radius = 224 * scale * k;
   const raw = Buffer.alloc(N * (N * 4 + 1));
   for (let y = 0; y < N; y++) {
     raw[y * (N * 4 + 1)] = 0;
@@ -35,7 +41,7 @@ function render(scale, shadow) {
       const a = cover(rrDist(px, py, N / 2, N / 2, half, half, radius));
       let t = 0;
       for (const [cx, cy, hw, hh] of bars) {
-        t = Math.max(t, cover(rrDist(px, py, N / 2 + (cx - 512) * scale, N / 2 + (cy - 512) * scale, hw * scale, hh * scale, 24 * scale)));
+        t = Math.max(t, cover(rrDist(px, py, N / 2 + (cx - 512) * scale * k, N / 2 + (cy - 512) * scale * k, hw * scale * k, hh * scale * k, 24 * scale * k)));
       }
       const o = y * (N * 4 + 1) + 1 + x * 4;
       let r = bg[0] * (1 - t) + fg[0] * t;
@@ -44,8 +50,8 @@ function render(scale, shadow) {
       let alpha = a;
       if (shadow && a < 1) {
         // soft shadow: a blurred copy of the shape, nudged down, painted underneath
-        const d = rrDist(px, py, N / 2, N / 2 + 14, half, half, radius);
-        const s = 0.38 * Math.pow(Math.min(1, Math.max(0, 1 - d / 34)), 2);
+        const d = rrDist(px, py, N / 2, N / 2 + 14 * k, half, half, radius);
+        const s = 0.38 * Math.pow(Math.min(1, Math.max(0, 1 - d / (34 * k))), 2);
         const outA = a + s * (1 - a);
         r = outA ? (r * a) / outA : 0;
         g = outA ? (g * a) / outA : 0;
@@ -79,15 +85,19 @@ const chunk = (type, data) => {
   crc.writeUInt32BE(crc32(body));
   return Buffer.concat([len, body, crc]);
 };
-const ihdr = Buffer.alloc(13);
-ihdr.writeUInt32BE(N, 0);
-ihdr.writeUInt32BE(N, 4);
-ihdr.set([8, 6, 0, 0, 0], 8); // 8-bit RGBA
+const png = (N, raw) => {
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(N, 0);
+  ihdr.writeUInt32BE(N, 4);
+  ihdr.set([8, 6, 0, 0, 0], 8); // 8-bit RGBA
+  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', deflateSync(raw, { level: 9 })), chunk('IEND', Buffer.alloc(0))]);
+};
 
-const png = (raw) =>
-  Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', deflateSync(raw, { level: 9 })), chunk('IEND', Buffer.alloc(0))]);
-
-mkdirSync(new URL('../build/', import.meta.url), { recursive: true });
-writeFileSync(new URL('../build/icon.png', import.meta.url), png(render(1, false)));
-writeFileSync(new URL('../build/icon-mac.png', import.meta.url), png(render(824 / 1024, true)));
-console.log('wrote build/icon.png and build/icon-mac.png');
+// Only when run as a script: the test imports HICOLOR_SIZES without regenerating anything.
+if (import.meta.url === `file://${process.argv[1]}`) {
+  mkdirSync(new URL('../build/icons/', import.meta.url), { recursive: true });
+  writeFileSync(new URL('../build/icon.png', import.meta.url), png(1024, render(1024, 1, false)));
+  writeFileSync(new URL('../build/icon-mac.png', import.meta.url), png(1024, render(1024, 824 / 1024, true)));
+  for (const n of HICOLOR_SIZES) writeFileSync(new URL(`../build/icons/${n}x${n}.png`, import.meta.url), png(n, render(n, 1, false)));
+  console.log(`wrote build/icon.png, build/icon-mac.png and build/icons/{${HICOLOR_SIZES.map((n) => `${n}x${n}`).join(',')}}.png`);
+}

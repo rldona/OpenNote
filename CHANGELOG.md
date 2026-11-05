@@ -51,6 +51,8 @@ when a `v*` tag is pushed; the section of the tag becomes the release notes.
   light or dark mode, and the theme chosen in the app is remembered outside the database so the first frame uses it.
 - Recordings and other attachments are served with byte ranges inside the mobile editor, which audio players need.
 - Pictures and recordings inserted into a note go after the selected item instead of replacing it.
+- Ubuntu shows the OpenNote icon instead of the generic one: the Linux package installs the icon at every size the
+  hicolor theme looks in (16 to 512), not only at 1024, which the theme never reads.
 
 ## [0.5.0] - 2026-10-19
 

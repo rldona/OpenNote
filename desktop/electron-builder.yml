@@ -36,7 +36,9 @@ dmg:
   title: OpenNote ${version}
 
 linux:
-  icon: build/icon.png
+  # One PNG per hicolor size (scripts/make-icons.mjs). hicolor stops at 512x512: given only the 1024 icon.png, the .deb
+  # installed it under hicolor/1024x1024, where the theme never looks, and Ubuntu showed the generic icon.
+  icon: build/icons
   executableName: opennote
   category: Office
   synopsis: Local-first notes
