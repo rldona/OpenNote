@@ -6,6 +6,8 @@ when a `v*` tag is pushed; the section of the tag becomes the release notes.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-05
+
 ### Added (Android and iOS apps)
 - **New navigation**, after Evernote's 2024 mobile layout: a floating bar with Create, Notes, Notebooks and More, and a round
   search button beside it. Settings › Navigation chooses which three sections the bar shows (Notes is always there); the rest
@@ -268,7 +270,8 @@ First public build.
 - Local-only by design: the server listens on loopback only, with Host/Origin checks, a strict Content-Security-Policy and
   sanitized HTML.
 
-[Unreleased]: https://github.com/rldona/OpenNote/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/rldona/OpenNote/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/rldona/OpenNote/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/rldona/OpenNote/compare/v0.4.3...v0.5.0
 [0.4.3]: https://github.com/rldona/OpenNote/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/rldona/OpenNote/compare/v0.4.1...v0.4.2
