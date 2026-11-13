@@ -15,6 +15,10 @@ when a `v*` tag is pushed; the section of the tag becomes the release notes.
 - `docs/GOOGLE-DRIVE-SETUP.md` now says to publish the Google consent screen (*In production*): with the `drive.appdata`
   scope alone it needs no verification, and it stops the weekly disconnections.
 
+### Added
+- A privacy policy page (English and Spanish) at `https://rldona.github.io/OpenNote/privacy.html`, which Google requires
+  before the consent screen can be published.
+
 ## [0.6.0] - 2026-11-05
 
 ### Added (Android and iOS apps)

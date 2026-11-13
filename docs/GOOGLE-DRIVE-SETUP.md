@@ -16,6 +16,10 @@ OpenNote cannot see or change the user's other files, and the notes in it are en
    - App name **OpenNote**, a support email, and a developer contact email.
    - **Scopes → Add or remove scopes**: add `.../auth/drive.appdata` ("See, create, and delete its own configuration data in
      your Google Drive"). It is not a sensitive scope.
+   - **Branding → App domain**: application home page `https://rldona.github.io/OpenNote/`, privacy policy
+     `https://rldona.github.io/OpenNote/privacy.html` (from `web/public-standalone/privacy.html`), authorised domain
+     `rldona.github.io`. Leave the logo empty: uploading one requires verification. *Publish app* stays disabled until
+     these are saved.
    - **Audience → Publishing status → Publish app**, so the status reads **In production**. Do this even for personal use:
      while it says *Testing*, Google expires the long-lived permission of the desktop and phone apps **after 7 days**, and they
      ask to connect again every week (see [Why it disconnects](#why-google-drive-disconnects)). With only `drive.appdata`,
