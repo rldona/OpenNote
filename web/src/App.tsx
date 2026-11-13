@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { api, type SyncStatus, type Task, type Note, type NoteSummary, type Notebook, type SavedSearch, type TagCount, type Version } from './api';
+import { api, driveExpired, type SyncStatus, type Task, type Note, type NoteSummary, type Notebook, type SavedSearch, type TagCount, type Version } from './api';
 import { AttachmentsPanel } from './Attachments';
 import { Home } from './Home';
 import { NoteEditor } from './Editor';
@@ -195,6 +195,25 @@ export function App() {
     void check();
     const id = setInterval(() => void check(), 30_000);
     return () => clearInterval(id);
+  }, []);
+
+  // Google Drive (desktop app, local server): sync runs in the server, so a refused permission would otherwise only show in
+  // the sync panel. Say it when the window opens or comes back to the front.
+  useEffect(() => {
+    if (__STANDALONE__) return;
+    let told = false;
+    const check = () => {
+      if (told) return;
+      void api.googleStatus().then((g) => {
+        if (driveExpired(g) && !told) {
+          told = true;
+          setToast(t('driveReconnect'));
+        }
+      }, () => undefined);
+    };
+    check();
+    window.addEventListener('focus', check);
+    return () => window.removeEventListener('focus', check);
   }, []);
 
   // Google Drive (browser build): renewals need a click, and a sync is useful whenever the page comes back or goes online.

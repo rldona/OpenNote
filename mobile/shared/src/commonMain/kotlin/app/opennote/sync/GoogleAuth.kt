@@ -56,6 +56,9 @@ class GoogleAuth(
 
     val connected: Boolean get() = secrets.get(REFRESH_KEY) != null
 
+    /** Google refused the stored permission and the user has not connected again yet: the app says so instead of just "not syncing". */
+    val expired: Boolean get() = !connected && secrets.get(EXPIRED_KEY) != null
+
     fun begin(): Pending {
         val verifier = b64url(CryptographyRandom.nextBytes(48))
         val state = b64url(CryptographyRandom.nextBytes(16))
@@ -78,6 +81,7 @@ class GoogleAuth(
         )
         val refresh = (t["refresh_token"] as? JsonPrimitive)?.content ?: throw SyncError("Google did not return a long-lived access; try connecting again")
         secrets.set(REFRESH_KEY, refresh)
+        secrets.set(EXPIRED_KEY, null)
         remember(t)
     }
 
@@ -89,10 +93,12 @@ class GoogleAuth(
             remember(tokenRequest("grant_type" to "refresh_token", "refresh_token" to refresh))
         } catch (e: SyncError) {
             if (e.message == "invalid_grant") {
-                // Revoked in the Google account, or unused for six months: the stored permission is gone.
+                // The stored permission is gone: revoked in the Google account, unused for six months, the password changed,
+                // or (the usual one) issued while the Google Cloud project was in "Testing", where Google expires it after 7 days.
                 secrets.set(REFRESH_KEY, null)
+                secrets.set(EXPIRED_KEY, "1")
                 access = null
-                throw SyncError("Google Drive access was withdrawn: connect again")
+                throw SyncError(EXPIRED_MESSAGE)
             }
             throw e
         }
@@ -115,6 +121,7 @@ class GoogleAuth(
     suspend fun disconnect() {
         val refresh = secrets.get(REFRESH_KEY)
         secrets.set(REFRESH_KEY, null)
+        secrets.set(EXPIRED_KEY, null)
         access = null
         // Best effort: forgetting it here is what matters.
         if (refresh != null) runCatching { http.submitForm(REVOKE_URL, Parameters.build { append("token", refresh) }) }
@@ -138,13 +145,16 @@ class GoogleAuth(
 
     private fun b64url(b: ByteArray) = Base64.UrlSafe.encode(b).trimEnd('=')
 
-    private companion object {
-        const val AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
-        const val TOKEN_URL = "https://oauth2.googleapis.com/token"
-        const val REVOKE_URL = "https://oauth2.googleapis.com/revoke"
-        const val SCOPE = "https://www.googleapis.com/auth/drive.appdata"
-        const val REFRESH_KEY = "sync.google.refresh"
-        const val ABOUT_URL = "https://www.googleapis.com/drive/v3/about?fields=user(displayName,emailAddress,photoLink)"
+    companion object {
+        /** The same words as the desktop app's (server/src/google-oauth.ts). */
+        const val EXPIRED_MESSAGE = "Google Drive access expired or was withdrawn: connect again"
+        private const val EXPIRED_KEY = "sync.google.expired"
+        private const val AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
+        private const val TOKEN_URL = "https://oauth2.googleapis.com/token"
+        private const val REVOKE_URL = "https://oauth2.googleapis.com/revoke"
+        private const val SCOPE = "https://www.googleapis.com/auth/drive.appdata"
+        private const val REFRESH_KEY = "sync.google.refresh"
+        private const val ABOUT_URL = "https://www.googleapis.com/drive/v3/about?fields=user(displayName,emailAddress,photoLink)"
     }
 }
 

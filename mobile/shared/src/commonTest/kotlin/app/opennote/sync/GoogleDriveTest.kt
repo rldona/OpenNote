@@ -165,8 +165,16 @@ class GoogleDriveTest {
         clock += 3_600_000
         assertNotEquals("a1", auth.getToken(false)) // expired: renewed from the refresh token
         g.refreshValid = false
-        assertContains(assertFailsWith<SyncError> { auth.getToken(true) }.message!!, "withdrawn")
+        assertContains(assertFailsWith<SyncError> { auth.getToken(true) }.message!!, "expired or was withdrawn")
         assertFalse(auth.connected)
+        // Remembered (a restart reads the same store) until the user connects again.
+        val restarted = GoogleAuth(g.client, "client-id", "app.opennote:/oauth2redirect", secrets) { clock }
+        assertTrue(restarted.expired)
+        g.refreshValid = true
+        val again = restarted.begin()
+        restarted.complete(again, "app.opennote:/oauth2redirect?state=${again.state}&code=the-code")
+        assertTrue(restarted.connected)
+        assertFalse(restarted.expired)
     }
 
     @Test
@@ -174,8 +182,10 @@ class GoogleDriveTest {
         val g = FakeGoogle()
         val secrets = MemorySecretStore().apply { set("sync.google.refresh", "r9") }
         val auth = GoogleAuth(g.client, "client-id", "app.opennote:/oauth2redirect", secrets)
+        secrets.set("sync.google.expired", "1")
         auth.disconnect()
         assertFalse(auth.connected)
+        assertFalse(auth.expired)
         assertEquals("r9", g.requests.single()["token"])
     }
 }

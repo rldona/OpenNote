@@ -100,6 +100,12 @@ class Strings(val es: Boolean) {
         "Keeps your notes in step with your other devices through a hidden OpenNote folder in your Google Drive. They are encrypted on this device before they leave it.",
         "Mantiene tus notas al día con tus otros dispositivos a través de una carpeta oculta de OpenNote en tu Google Drive. Se cifran en este dispositivo antes de salir de él.",
     )
+    val driveExpired = t(
+        "Google stopped accepting this connection, so sync is paused. Connect Google Drive again; your notes on this device are safe.",
+        "Google ha dejado de aceptar esta conexión y la sincronización está en pausa. Vuelve a conectar Google Drive; las notas de este dispositivo están a salvo.",
+    )
+    val driveExpiredShort = t("Connect Google Drive again", "Vuelve a conectar Google Drive")
+    val connectAgain = t("Connect again", "Conectar de nuevo")
     val driveConnected = t("Connected to Google Drive", "Conectado a Google Drive")
     val disconnect = t("Disconnect", "Desconectar")
     val confirmDisconnect = t(

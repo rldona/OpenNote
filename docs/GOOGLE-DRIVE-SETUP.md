@@ -16,8 +16,14 @@ OpenNote cannot see or change the user's other files, and the notes in it are en
    - App name **OpenNote**, a support email, and a developer contact email.
    - **Scopes → Add or remove scopes**: add `.../auth/drive.appdata` ("See, create, and delete its own configuration data in
      your Google Drive"). It is not a sensitive scope.
-   - **Test users**: add your own Google account (and any others you want to try it with). Up to 100 are allowed while the app
-     is in *Testing*.
+   - **Branding → App domain**: application home page `https://rldona.github.io/OpenNote/`, privacy policy
+     `https://rldona.github.io/OpenNote/privacy.html` (from `web/public-standalone/privacy.html`), authorised domain
+     `rldona.github.io`. Leave the logo empty: uploading one requires verification. *Publish app* stays disabled until
+     these are saved.
+   - **Audience → Publishing status → Publish app**, so the status reads **In production**. Do this even for personal use:
+     while it says *Testing*, Google expires the long-lived permission of the desktop and phone apps **after 7 days**, and they
+     ask to connect again every week (see [Why it disconnects](#why-google-drive-disconnects)). With only `drive.appdata`,
+     which is not a sensitive scope, publishing needs no review and no verification.
 4. **APIs & Services → Credentials → Create credentials → OAuth client ID**:
    - Application type: **Web application**, name *OpenNote web*.
    - **Authorised JavaScript origins**: `https://rldona.github.io` and, to try it locally, `http://localhost:8080` (add any other
@@ -69,14 +75,26 @@ syncs a few seconds after each change, when it opens and closes, and now and the
 
 ## Things to know
 
-- **"Testing" mode is enough for personal use** and costs nothing. Google shows an "unverified app" screen the first time; choose
-  *Advanced → continue*. Only the listed test users can sign in.
-- **Opening it to everyone** means moving the consent screen to *In production*. For a non-sensitive scope Google asks for brand
-  verification, which needs a homepage on a domain you can verify. A `github.io` address may not be accepted for that, in which
-  case a custom domain (a few euros a year) would be the only cost in the whole project. Personal use never needs it.
-- Google's token flow has no long-lived refresh token, so the browser asks Google for a fresh access token about once an hour. It
-  is usually silent; if the browser blocks it, the sync status says to connect again.
+- **Keep the consent screen *In production*** (step 3). It costs nothing. Without verification Google may show the consent
+  screen without OpenNote's name and logo, and possibly an "unverified app" notice (choose *Advanced → continue*); that is
+  only cosmetic. Brand verification (name and logo) needs a homepage on a domain you can verify, which a `github.io` address
+  may not be; personal use never needs it.
+- Google's token flow in the browser has no long-lived refresh token, so the web version asks Google for a fresh access token
+  about once an hour. If the browser blocks that while the page is in the background, sync pauses until the next click in
+  OpenNote, or the sync status says to connect again. The desktop and phone apps do not have this limit.
 - Every device must use the **same passphrase**; it is stored only in that device's browser. Losing it means the synced data
   cannot be recovered (the notes on each device are not affected).
 - To revoke access at any time: <https://myaccount.google.com/permissions>. Deleting the app's hidden data is done from Google Drive
   → Settings → *Manage apps* → OpenNote → *Delete hidden app data*.
+
+## Why Google Drive disconnects
+
+| Where | What happens | Why | Fix |
+| --- | --- | --- | --- |
+| Desktop, Android, iOS | Asks to connect again about once a week | The consent screen is in *Testing*: Google expires refresh tokens after 7 days | Publish it (step 3), then connect once more on each device: tokens issued while in *Testing* still expire |
+| Desktop, Android, iOS | Asks to connect again once | Access revoked at <https://myaccount.google.com/permissions>, the Google password changed, or the app unused for 6 months | Connect again |
+| Web (GitHub Pages) | Sync pauses, "click anywhere to resume" or "connect again" | The browser token flow lasts about an hour and Google's renewal popup needs a click | Click in OpenNote; a lasting web connection would need a small token server (not built) |
+
+When Google refuses the stored permission (`invalid_grant`), the desktop and phone apps forget it, keep the reason, and show
+"connect again" (desktop: a message when the window comes to the front and the sync panel; phones: the account button and
+Settings › Sync) until you connect again. Notes on the device are never affected; they sync again after reconnecting.

@@ -22,6 +22,9 @@ const REVOKE_URL = 'https://oauth2.googleapis.com/revoke';
 const SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
 const REFRESH_KEY = 'sync.google.refresh';
 const PROFILE_KEY = 'sync.google.profile';
+/** Set when Google refused the stored permission, so the app can say why sync stopped (even after a restart) until the user connects again. */
+const EXPIRED_KEY = 'sync.google.expired';
+export const EXPIRED_MESSAGE = 'Google Drive access expired or was withdrawn: connect again';
 /** The account's name and picture are looked up again after this long, in case they changed. */
 const PROFILE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const SIGN_IN_TIMEOUT_MS = 5 * 60 * 1000;
@@ -89,7 +92,8 @@ export class GoogleAuth implements GoogleConnection {
 
   state(): { state: 'idle' | 'waiting' | 'error'; error?: string } {
     if (this.pending) return { state: 'waiting' };
-    return this.lastError ? { state: 'error', error: this.lastError } : { state: 'idle' };
+    if (this.lastError) return { state: 'error', error: this.lastError };
+    return this.store.getMeta(EXPIRED_KEY) ? { state: 'error', error: EXPIRED_MESSAGE } : { state: 'idle' };
   }
 
   private async tokenRequest(params: Record<string, string>): Promise<{ access_token: string; expires_in: number; refresh_token?: string }> {
@@ -136,6 +140,7 @@ export class GoogleAuth implements GoogleConnection {
         (t) => {
           if (!t.refresh_token) return this.finish('Google did not return a long-lived access; try connecting again');
           this.store.setMeta(REFRESH_KEY, t.refresh_token);
+          this.store.setMeta(EXPIRED_KEY, null);
           this.access = { token: t.access_token, expiresAt: Date.now() + (t.expires_in - 60) * 1000 };
           this.finish();
           void this.refreshProfile(t.access_token, true);
@@ -191,10 +196,12 @@ export class GoogleAuth implements GoogleConnection {
       return t.access_token;
     } catch (err) {
       if (err instanceof SyncError && err.message === 'invalid_grant') {
-        // Revoked in the Google account, or unused for six months: the stored permission is gone.
+        // The stored permission is gone: revoked in the Google account, unused for six months, the password changed, or
+        // (the usual one) issued while the Google Cloud project was in "Testing", where Google expires it after 7 days.
         this.store.setMeta(REFRESH_KEY, null);
+        this.store.setMeta(EXPIRED_KEY, '1');
         this.access = null;
-        throw new SyncError('Google Drive access was withdrawn: connect again');
+        throw new SyncError(EXPIRED_MESSAGE);
       }
       throw err;
     }
@@ -205,6 +212,7 @@ export class GoogleAuth implements GoogleConnection {
     this.cancel();
     this.store.setMeta(REFRESH_KEY, null);
     this.store.setMeta(PROFILE_KEY, null);
+    this.store.setMeta(EXPIRED_KEY, null);
     this.access = null;
     this.lastError = undefined;
     if (refresh) {

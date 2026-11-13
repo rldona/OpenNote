@@ -41,6 +41,15 @@ object AppCore {
     /** Google Drive is connected (changes on connect and disconnect). */
     val connected = MutableStateFlow(false)
 
+    /** Google refused the stored permission: sync is paused until the user connects again. */
+    val expired = MutableStateFlow(false)
+
+    /** Reads the connection again: a sync may have found that Google no longer accepts it. */
+    private fun refreshConnection() {
+        connected.value = auth?.connected == true
+        expired.value = auth?.expired == true
+    }
+
     /** The Google account sync uses, and its picture, once known (kept in the meta table, not synced). */
     val profile = MutableStateFlow<GoogleProfile?>(null)
     val photo = MutableStateFlow<ImageBitmap?>(null)
@@ -51,7 +60,7 @@ object AppCore {
     suspend fun repo(): Repo = lock.withLock {
         opened ?: Repo.open(secrets, auth?.let { a -> { GoogleDriveTransport(http, a::getToken) } }).also {
             opened = it
-            connected.value = auth?.connected == true
+            refreshConnection()
             watch(it)
             loadProfile(it)
         }
@@ -62,6 +71,7 @@ object AppCore {
     @OptIn(FlowPreview::class)
     private fun watch(r: Repo) {
         scope.launch { r.revision.debounce(800).collect { refreshReminders(r) } }
+        scope.launch { r.syncStatus.collect { refreshConnection() } }
         // Edits are sent a few seconds after typing stops.
         scope.launch { r.edits.drop(1).debounce(4000).collect { syncIfReady() } }
     }
@@ -75,7 +85,7 @@ object AppCore {
         val pending = a.begin()
         val redirect = openSignInBrowser(pending.url, cfg.scheme) ?: return false
         a.complete(pending, redirect)
-        connected.value = true
+        refreshConnection()
         scheduleBackgroundSync()
         scope.launch { refreshProfile(repo(), force = true) }
         return true
@@ -83,7 +93,7 @@ object AppCore {
 
     suspend fun disconnectGoogle() {
         auth?.disconnect()
-        connected.value = false
+        refreshConnection()
         profile.value = null
         photo.value = null
         repo().write { setMeta(PROFILE_KEY, null); setMeta(PHOTO_KEY, null) }

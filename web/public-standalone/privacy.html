@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenNote · Privacy policy</title>
+<style>
+  :root { color-scheme: light dark; --bg: #ffffff; --fg: #1b1f1d; --muted: #59615c; --accent: #00a82d; --line: #dfe3e0; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #161a18; --fg: #e6ebe7; --muted: #a3aca6; --accent: #3ccf63; --line: #2c322f; } }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 42rem; margin: 0 auto; padding: 2rem 1rem 4rem; }
+  h1 { font-size: 1.6rem; margin: 0 0 .25rem; }
+  h2 { font-size: 1.1rem; margin: 2rem 0 .5rem; }
+  p, li { color: var(--fg); }
+  .muted { color: var(--muted); font-size: .9rem; }
+  a { color: var(--accent); }
+  nav { margin-bottom: 1.5rem; }
+  section + section { border-top: 1px solid var(--line); margin-top: 3rem; padding-top: 1rem; }
+</style>
+</head>
+<body>
+<main>
+<nav class="muted"><a href="#en">English</a> · <a href="#es">Español</a> · <a href="./">OpenNote</a></nav>
+
+<section id="en" lang="en">
+<h1>OpenNote privacy policy</h1>
+<p class="muted">Last updated: 13 November 2026</p>
+<p>OpenNote is a free, open source note-taking app. It has no servers of its own, no accounts, no analytics and no ads.
+This page says what happens to your data in each part of it.</p>
+
+<h2>Your notes stay on your device</h2>
+<p>Notes, notebooks, tags and attachments are stored only on the device where you use OpenNote: in the browser's storage for
+the web version, and in a local database for the desktop and phone apps. Nobody else, including the author of OpenNote,
+can see them.</p>
+
+<h2>Optional Google Drive sync</h2>
+<p>If you choose to connect Google Drive, OpenNote asks Google for one permission only,
+<code>drive.appdata</code>: a hidden folder in your Drive that belongs to OpenNote. OpenNote cannot see, read or change any
+of your other Drive files.</p>
+<ul>
+  <li>Before anything is sent, your notes are encrypted on your device with a passphrase that only you know. Google stores
+    unreadable files; neither Google nor the author of OpenNote can read them.</li>
+  <li>OpenNote also reads your Google account's name, email address and picture (through Drive's own "about" call) to show
+    which account is connected. They are kept on your device only.</li>
+  <li>The permission Google gives OpenNote is kept on your device (the browser, the desktop app's database, or the phone's
+    Keychain or Keystore). It is never sent anywhere except to Google.</li>
+  <li>Data received from Google is used only to sync your own notes between your own devices. It is not shared, sold,
+    used for advertising, or used to train any AI model. OpenNote's use of information received from Google APIs adheres
+    to the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data
+    Policy</a>, including the Limited Use requirements.</li>
+</ul>
+<p>You can disconnect from OpenNote's sync settings, or revoke access at any time at
+<a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>. To delete the synced files, open
+Google Drive → Settings → Manage apps → OpenNote → Delete hidden app data.</p>
+
+<h2>Web clipper</h2>
+<p>The browser extension sends the page you choose to clip to your own OpenNote app on your computer. It sends nothing
+anywhere else.</p>
+
+<h2>Changes and contact</h2>
+<p>Changes to this policy are published on this page and in the project's history. Questions:
+<a href="https://github.com/rldona/OpenNote/issues">github.com/rldona/OpenNote/issues</a>.</p>
+</section>
+
+<section id="es" lang="es">
+<h1>Política de privacidad de OpenNote</h1>
+<p class="muted">Última actualización: 13 de noviembre de 2026</p>
+<p>OpenNote es una aplicación de notas gratuita y de código abierto. No tiene servidores propios, ni cuentas, ni analítica,
+ni publicidad. Esta página explica qué pasa con tus datos en cada parte de ella.</p>
+
+<h2>Tus notas se quedan en tu dispositivo</h2>
+<p>Las notas, cuadernos, etiquetas y adjuntos se guardan solo en el dispositivo donde usas OpenNote: en el almacenamiento
+del navegador en la versión web, y en una base de datos local en las aplicaciones de escritorio y móvil. Nadie más, ni
+siquiera el autor de OpenNote, puede verlas.</p>
+
+<h2>Sincronización opcional con Google Drive</h2>
+<p>Si decides conectar Google Drive, OpenNote solo pide a Google un permiso, <code>drive.appdata</code>: una carpeta oculta
+de tu Drive que pertenece a OpenNote. OpenNote no puede ver, leer ni modificar ningún otro archivo de tu Drive.</p>
+<ul>
+  <li>Antes de enviar nada, tus notas se cifran en tu dispositivo con una contraseña que solo tú conoces. Google guarda
+    archivos ilegibles; ni Google ni el autor de OpenNote pueden leerlos.</li>
+  <li>OpenNote también lee el nombre, el correo y la foto de tu cuenta de Google (con la llamada «about» de Drive) para
+    mostrar qué cuenta está conectada. Se guardan solo en tu dispositivo.</li>
+  <li>El permiso que Google da a OpenNote se guarda en tu dispositivo (el navegador, la base de datos de la aplicación de
+    escritorio, o el Llavero o el Keystore del móvil). Nunca se envía a ningún sitio salvo a Google.</li>
+  <li>Los datos recibidos de Google se usan solo para sincronizar tus propias notas entre tus propios dispositivos. No se
+    comparten, no se venden, no se usan para publicidad ni para entrenar modelos de IA. El uso que OpenNote hace de la
+    información recibida de las API de Google cumple la
+    <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>,
+    incluidos los requisitos de uso limitado.</li>
+</ul>
+<p>Puedes desconectar desde los ajustes de sincronización de OpenNote, o retirar el acceso en cualquier momento en
+<a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>. Para borrar los archivos
+sincronizados, abre Google Drive → Configuración → Gestionar aplicaciones → OpenNote → Eliminar datos ocultos de la
+aplicación.</p>
+
+<h2>Recortador web</h2>
+<p>La extensión del navegador envía la página que eliges recortar a tu propia aplicación OpenNote en tu ordenador. No
+envía nada a ningún otro sitio.</p>
+
+<h2>Cambios y contacto</h2>
+<p>Los cambios en esta política se publican en esta página y en el historial del proyecto. Preguntas:
+<a href="https://github.com/rldona/OpenNote/issues">github.com/rldona/OpenNote/issues</a>.</p>
+</section>
+</main>
+</body>
+</html>
