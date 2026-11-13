@@ -135,6 +135,28 @@ describe('Google sign-in for the desktop app (loopback + PKCE)', () => {
     await expect(auth.getToken(false)).rejects.toThrow(/Connect Google Drive first/);
   });
 
+  it('remembers that Google refused the permission, across restarts, until the user connects again', async () => {
+    const g = fakeGoogle();
+    const m = meta();
+    m.setMeta('sync.google.refresh', 'refresh-1');
+    g.state.refreshOk = false; // e.g. 7 days old while the Google Cloud project is in "Testing"
+    await expect(new GoogleAuth(m, CLIENT, g.fetchImpl).getToken(false)).rejects.toThrow(/expired or was withdrawn: connect again/);
+    const restarted = new GoogleAuth(m, CLIENT, g.fetchImpl);
+    expect(restarted.connected()).toBe(false);
+    expect(restarted.state()).toEqual({ state: 'error', error: 'Google Drive access expired or was withdrawn: connect again' });
+
+    const { url } = await restarted.begin();
+    expect(restarted.state()).toEqual({ state: 'waiting' });
+    g.rememberChallenge(new URL(url).searchParams.get('code_challenge')!);
+    await browserReturns(url, (state) => `state=${state}&code=good-code`);
+    await until(() => restarted.connected());
+    expect(restarted.state()).toEqual({ state: 'idle' });
+
+    m.setMeta('sync.google.expired', '1');
+    await restarted.disconnect();
+    expect(restarted.state()).toEqual({ state: 'idle' });
+  });
+
   it('disconnect revokes the token and forgets it; an unconfigured build refuses to start', async () => {
     const g = fakeGoogle();
     const m = meta();

@@ -249,6 +249,7 @@ private fun SyncSettings() {
     val s = strings
     val auth = AppCore.auth
     val connected by AppCore.connected.collectAsState()
+    val expired by AppCore.expired.collectAsState()
     val status by env.repo.syncStatus.collectAsState()
     val syncing by env.repo.syncing.collectAsState()
     var busy by remember { mutableStateOf(false) }
@@ -261,14 +262,15 @@ private fun SyncSettings() {
         when {
             auth == null -> Text(s.driveNotConfigured, fontSize = 14.sp, color = muted)
             !connected -> {
-                Text(s.driveExplain, fontSize = 14.sp, color = muted)
+                if (expired) Text(s.driveExpired, fontSize = 14.sp, color = MaterialTheme.colorScheme.error)
+                else Text(s.driveExplain, fontSize = 14.sp, color = muted)
                 Button(enabled = !busy, onClick = {
                     busy = true
                     env.scope.launch {
                         runCatching { AppCore.connectGoogle() }.onFailure { env.message(it.message ?: "$it") }
                         busy = false
                     }
-                }) { Text(if (busy) s.connecting else s.connectDrive) }
+                }) { Text(if (busy) s.connecting else if (expired) s.connectAgain else s.connectDrive) }
             }
             else -> {
                 Text(s.driveConnected, fontSize = 14.sp, color = muted)

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, type GoogleInfo, type SyncConfig, type SyncStatus } from './api';
+import { api, driveExpired, type GoogleInfo, type SyncConfig, type SyncStatus } from './api';
 import { locale, t } from './i18n';
 import { connect, disconnect, driveConfigured, isConnected, preloadGoogle } from './standalone/google-auth';
 
@@ -18,7 +18,7 @@ function useDrive(active: boolean) {
     setConfigured(g.configured);
     setConnected(g.connected);
     setBusy(g.state === 'waiting');
-    setError(g.state === 'error' ? g.error ?? null : null);
+    setError(driveExpired(g) ? t('driveExpired') : g.state === 'error' ? g.error ?? null : null);
     return g;
   };
 

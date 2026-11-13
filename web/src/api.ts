@@ -10,6 +10,8 @@ export interface SavedSearch { id: string; name: string; query: string }
 export interface Task { noteId: string; noteTitle: string; notebookId: string; idx: number; text: string; checked: boolean; due: string | null }
 export interface SyncConfig { folder: string | null; remote: boolean; canChooseBackend: boolean; remoteLabel: string | null; requireEncryption: boolean; enabled: boolean; intervalMinutes: number; hasPassphrase: boolean; deviceName: string }
 export interface GoogleProfile { name: string; email: string; photo: string | null }
+/** The server's error when Google refused the stored permission (google-oauth.ts EXPIRED_MESSAGE). */
+export const driveExpired = (g: GoogleInfo) => !g.connected && g.state === 'error' && /expired or was withdrawn/.test(g.error ?? '');
 export interface GoogleInfo { configured: boolean; connected: boolean; state: 'idle' | 'waiting' | 'error'; error?: string; profile?: GoogleProfile | null }
 export interface SyncStatus {
   running: boolean; lastRunAt: number | null; ok: boolean; pushed: number; pulled: number; deleted: number;

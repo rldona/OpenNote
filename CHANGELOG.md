@@ -6,6 +6,15 @@ when a `v*` tag is pushed; the section of the tag becomes the release notes.
 
 ## [Unreleased]
 
+### Fixed
+- **Google Drive no longer looks connected after Google stops accepting the connection.** When Google refuses the stored
+  permission (most often because the Google Cloud project was still in *Testing*, where Google expires it after 7 days),
+  the desktop app shows a "connect again" message when its window comes to the front and in the sync panel, and the phone
+  apps show it on the account button and in Settings › Sync with a *Connect again* button, even after a restart. Before,
+  the phones kept saying "connected" until the app was restarted, and then just "not syncing".
+- `docs/GOOGLE-DRIVE-SETUP.md` now says to publish the Google consent screen (*In production*): with the `drive.appdata`
+  scope alone it needs no verification, and it stops the weekly disconnections.
+
 ## [0.6.0] - 2026-11-05
 
 ### Added (Android and iOS apps)

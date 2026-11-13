@@ -159,8 +159,9 @@ Still to do: first real desktop sign-in (needs the Desktop OAuth client), Firefo
 
 1. A **Google Cloud project** with the *Google Drive API* enabled.
 2. **OAuth consent screen** (External), scope `drive.appdata` only. This scope is not "sensitive", so publishing needs
-   brand verification but no security assessment. While in *Testing* it is limited to 100 listed users with a warning
-   screen.
+   no review or security assessment; brand verification is only needed to show the app's name and logo. Publish it (*In
+   production*): while in *Testing* it is limited to 100 listed users and Google expires refresh tokens after 7 days, so the
+   desktop and phone apps would have to connect again every week.
 3. Two **OAuth client IDs**: *Web application* (authorised JavaScript origin = where the browser build is hosted) and
    *Desktop app*. Client IDs are public by design and live in the source.
 

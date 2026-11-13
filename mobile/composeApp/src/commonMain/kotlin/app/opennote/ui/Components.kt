@@ -113,6 +113,7 @@ fun AccountButton() {
     val c = MaterialTheme.colorScheme
     val uri = LocalUriHandler.current
     val connected by AppCore.connected.collectAsState()
+    val expired by AppCore.expired.collectAsState()
     val status by env.repo.syncStatus.collectAsState()
     val profile by AppCore.profile.collectAsState()
     var open by remember { mutableStateOf(false) }
@@ -120,7 +121,7 @@ fun AccountButton() {
         Box(Modifier.padding(4.dp).size(40.dp).clickable(onClickLabel = s.account) { open = true }) {
             Avatar(40.dp)
             // A dot when the last sync went wrong.
-            if (status?.ok == false) Box(Modifier.align(Alignment.TopEnd).size(10.dp).clip(CircleShape).background(c.error))
+            if (status?.ok == false || expired) Box(Modifier.align(Alignment.TopEnd).size(10.dp).clip(CircleShape).background(c.error))
         }
         DropdownMenu(open, { open = false }, shape = RoundedCornerShape(18.dp)) {
             Row(
@@ -141,12 +142,12 @@ fun AccountButton() {
                     val st = status
                     Text(
                         when {
-                            !connected -> s.notSyncing
+                            !connected -> if (expired) s.driveExpiredShort else s.notSyncing
                             st == null -> s.driveConnected
                             st.ok -> s.syncedAt(ago(st.lastRunAt ?: 0))
                             else -> s.syncProblem
                         },
-                        fontSize = 13.sp, color = if (st?.ok == false && connected) c.error else c.onSurfaceVariant, maxLines = 2,
+                        fontSize = 13.sp, color = if ((st?.ok == false && connected) || expired) c.error else c.onSurfaceVariant, maxLines = 2,
                     )
                 }
                 Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = c.onSurfaceVariant)
