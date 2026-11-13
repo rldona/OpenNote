@@ -6,6 +6,8 @@ when a `v*` tag is pushed; the section of the tag becomes the release notes.
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-11-13
+
 ### Fixed
 - **Google Drive no longer looks connected after Google stops accepting the connection.** When Google refuses the stored
   permission (most often because the Google Cloud project was still in *Testing*, where Google expires it after 7 days),
@@ -283,7 +285,8 @@ First public build.
 - Local-only by design: the server listens on loopback only, with Host/Origin checks, a strict Content-Security-Policy and
   sanitized HTML.
 
-[Unreleased]: https://github.com/rldona/OpenNote/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/rldona/OpenNote/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/rldona/OpenNote/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/rldona/OpenNote/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/rldona/OpenNote/compare/v0.4.3...v0.5.0
 [0.4.3]: https://github.com/rldona/OpenNote/compare/v0.4.2...v0.4.3
